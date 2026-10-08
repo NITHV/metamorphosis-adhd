@@ -5,6 +5,7 @@ import { getInboxCount, getHomeStats } from "@/lib/stats";
 import { getPileCounts } from "@/lib/items";
 import { getPausedCount } from "@/lib/checkpoints";
 import { PauseLauncher } from "@/components/pause/pause-launcher";
+import { AppServices, OfflineBanner } from "@/components/offline/app-services";
 import { Mascot } from "@/components/mascot";
 import { MobileTabBar, SidebarNav } from "@/components/nav";
 import { ToolbarActions } from "@/components/toolbar-actions";
@@ -35,6 +36,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </Suspense>
             </div>
           </header>
+
+          <Suspense fallback={null}>
+            <OfflineBannerForUser />
+          </Suspense>
 
           <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-28 md:px-8 md:pb-8">
             <div className="mx-auto w-full max-w-4xl">{children}</div>
@@ -101,5 +106,15 @@ async function StatusLeft() {
 
 async function PauseLauncherForUser() {
   const user = await getCurrentUser();
-  return <PauseLauncher userId={user.id} />;
+  return (
+    <>
+      <PauseLauncher userId={user.id} />
+      <AppServices userId={user.id} />
+    </>
+  );
+}
+
+async function OfflineBannerForUser() {
+  const user = await getCurrentUser();
+  return <OfflineBanner userId={user.id} />;
 }

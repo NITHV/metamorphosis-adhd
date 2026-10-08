@@ -1,13 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { upload } from "@vercel/blob/client";
 import { startTransition, useEffect, useOptimistic, useRef, useState } from "react";
 import { ToastBar, useToast } from "@/components/toast";
 import {
   archiveCapture,
-  createCapture,
-  createVoiceCapture,
   restoreCapture,
   sortCapture,
   splitCapture,
@@ -22,7 +19,12 @@ import { useIsClient } from "@/components/use-is-client";
 import type { InboxCapture } from "@/lib/captures";
 import { KIND_META, KINDS, type Kind } from "@/lib/kinds";
 import { MAX_CAPTURE_LENGTH } from "@/lib/limits";
+import { enqueueText, enqueueVoice } from "@/lib/outbox";
+import { useOutbox } from "@/components/offline/use-outbox";
 import { findDate, guessKind, splitDump } from "@/lib/smart-guess";
+
+/** A dump still on its way to the server (saved in the device outbox). */
+type Row = InboxCapture & { waiting?: boolean };
 
 type OptimisticAction =
   | { type: "add"; captures: InboxCapture[] }
@@ -73,16 +75,10 @@ export function DumpInbox({
     };
   }, []);
 
-  /** Uploads the recording to the private Blob store, then saves the dump. */
+  /** Stores the recording in the device outbox; it uploads now, or as soon as there's signal. */
   async function saveVoice(transcript: string, audio: Blob) {
-    const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
-    const blob = await upload(`voice/${userId}/${Date.now()}.${ext}`, audio, {
-      access: "private",
-      handleUploadUrl: "/api/audio/upload",
-      contentType: audio.type || "audio/webm",
-    });
-    await createVoiceCapture(transcript, blob.url);
-    showToast({ message: "Voice dump saved ✓" });
+    await enqueueVoice(userId, transcript, audio);
+    showToast({ message: navigator.onLine ? "Voice dump saved ✓" : "Saved on this device ✓ Uploads when you're back online." });
   }
 
   /** Runs a server action with an optimistic update, and reports failures without losing anything. */
@@ -103,23 +99,13 @@ export function DumpInbox({
     if (!value) return;
     setText("");
     inputRef.current?.focus();
-    const temp: InboxCapture = {
-      id: `temp-${Date.now()}`,
-      rawText: value,
-      suggestedKind: guessKind(value),
-      hasAudio: false,
-      createdAt: new Date().toISOString(),
-    };
-    startTransition(async () => {
-      applyOptimistic({ type: "add", captures: [temp] });
-      try {
-        await createCapture(value);
-        showToast({ message: "Saved ✓" });
-      } catch {
+    enqueueText(userId, value).then(
+      () => showToast({ message: navigator.onLine ? "Saved ✓" : "Saved on this device ✓ Uploads when you're back online." }),
+      () => {
         setText(value); // give it back so nothing is lost
         showToast({ message: "Couldn't save. Your text is back in the box." });
-      }
-    });
+      },
+    );
   }
 
   function clear(c: InboxCapture) {
@@ -168,7 +154,20 @@ export function DumpInbox({
     });
   }
 
-  const visible = limit ? items.slice(0, limit) : items;
+  // Dumps still in the outbox show at the top until the server has them.
+  const outbox = useOutbox();
+  const waiting: Row[] = outbox
+    .filter((o) => o.userId === userId && !items.some((c) => c.id === o.id))
+    .map((o) => ({
+      id: `temp-outbox-${o.id}`,
+      rawText: o.text || "🎙️ Voice note",
+      suggestedKind: null,
+      hasAudio: false,
+      createdAt: o.createdAt,
+      waiting: true,
+    }));
+  const rows: Row[] = [...waiting, ...items];
+  const visible = limit ? rows.slice(0, limit) : rows;
 
   return (
     <div className="w-full">
@@ -237,22 +236,22 @@ export function DumpInbox({
               <InboxIcon className="h-4 w-4" />
             </span>
             Inbox
-            {items.length > 0 && (
+            {rows.length > 0 && (
               <span className="rounded-full bg-hairline px-2 py-0.5 text-xs font-semibold tabular-nums">
-                {items.length}
+                {rows.length}
               </span>
             )}
           </h2>
-          {limit && items.length > limit ? (
+          {limit && rows.length > limit ? (
             <Link href="/inbox" className="py-2 text-sm font-medium" style={{ color: "var(--pill-blue)" }}>
               See all
             </Link>
           ) : (
-            items.length > 0 && <span className="text-sm text-muted">Tap a pile to file it.</span>
+            rows.length > 0 && <span className="text-sm text-muted">Tap a pile to file it.</span>
           )}
         </div>
 
-        {items.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="rounded-2xl border-2 border-dashed border-hairline px-4 py-10 text-center text-muted">
             Inbox empty. Your head is clear 🌤️
           </p>
@@ -262,6 +261,7 @@ export function DumpInbox({
               <InboxRow
                 key={c.id}
                 capture={c}
+                waiting={c.waiting}
                 onClear={() => clear(c)}
                 onSort={(k) => sort(c, k)}
                 onSplit={() => split(c)}
@@ -278,11 +278,13 @@ export function DumpInbox({
 
 function InboxRow({
   capture: c,
+  waiting,
   onClear,
   onSort,
   onSplit,
 }: {
   capture: InboxCapture;
+  waiting?: boolean;
   onClear: () => void;
   onSort: (kind: Kind) => void;
   onSplit: () => void;
@@ -314,6 +316,11 @@ function InboxRow({
         <p className="min-w-0 flex-1 whitespace-pre-wrap break-words pt-0.5 leading-snug">{c.rawText}</p>
         <RelativeTime iso={c.createdAt} />
       </div>
+      {waiting && (
+        <p className="mt-1.5 pl-9 text-xs font-semibold sm:pl-10" style={{ color: "var(--pill-orange)" }}>
+          ⏳ Saved on this device, waiting to upload
+        </p>
+      )}
 
       {!pending && (
         <div className="mt-2.5 pl-9 sm:pl-10">

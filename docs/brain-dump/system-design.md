@@ -134,7 +134,7 @@ You open the app on your phone or laptop (it's a website you can "install" to yo
 | Smart guess | **Keyword rules + `chrono-node`** | Free, instant, runs on the device, private |
 | Voice → text | **Web Speech API** for live words (desktop) + **on-device Whisper** (tiny.en via transformers.js in a Web Worker) | Free. Whisper runs fully on the device (one-time ~40 MB model download, cached) and covers phones, Firefox, and "improve transcript". Note: Chrome/Edge live recognition sends audio to Google/Microsoft |
 | AI assist (optional) | **Vercel AI SDK** + a **free-tier** provider (Groq or Google Gemini) | Free up to daily limits. Switching provider is a one-line change, so better AI (e.g. Claude) can be plugged in later if you ever get credits |
-| Offline | **Service worker + IndexedDB queue** | Captures never get lost on a bad connection |
+| Offline | **Durable IndexedDB outbox** + **service worker** + Next.js `experimental.useOffline` | Every dump is written on the device first and delivered when there's signal, even after the app was closed. Client-chosen UUIDs make delivery idempotent (no duplicates), and dumps keep the time they were made. The service worker caches app files (cache-first) and the last-seen pages (network-first), so the installed app opens offline; cached pages are cleared on sign-out. Sorting and Pause need a connection |
 
 ### Why sorting doesn't block capture
 Capturing must feel instant. So the app **saves the raw dump first** and replies right away. The smart guess runs instantly on your device. If AI assist is on, it runs a moment later in the background (Next.js `after()`), and the suggestion updates on screen when ready.

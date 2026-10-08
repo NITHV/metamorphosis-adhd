@@ -44,38 +44,66 @@ const clip = (value: unknown, max: number) => (typeof value === "string" ? value
 // Captures (inbox)
 // ---------------------------------------------------------------------------
 
-export async function createCapture(text: string): Promise<{ id: string }> {
+/**
+ * Dumps saved offline arrive later with the id and time they were made on the phone.
+ * Reusing the phone's id makes delivery idempotent: a retry can never create a duplicate.
+ */
+export type CaptureOrigin = { id?: string; createdAt?: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_OFFLINE_AGE = 60 * 24 * 60 * 60 * 1000; // 60 days
+
+function originValues(origin?: CaptureOrigin): { id?: string; createdAt?: Date } {
+  const values: { id?: string; createdAt?: Date } = {};
+  if (origin?.id && UUID.test(origin.id)) values.id = origin.id.toLowerCase();
+  if (origin?.createdAt) {
+    const t = new Date(origin.createdAt).getTime();
+    // Trust the phone's clock only within sane bounds.
+    if (Number.isFinite(t) && t <= Date.now() + 60_000 && t >= Date.now() - MAX_OFFLINE_AGE) values.createdAt = new Date(t);
+  }
+  return values;
+}
+
+async function insertCapture(values: typeof captures.$inferInsert): Promise<{ id: string }> {
+  const [row] = await db.insert(captures).values(values).onConflictDoNothing({ target: captures.id }).returning({ id: captures.id });
+  // A conflict means this exact dump was already delivered (an earlier attempt succeeded).
+  return row ?? { id: values.id! };
+}
+
+export async function createCapture(text: string, origin?: CaptureOrigin): Promise<{ id: string }> {
   const userId = await requireUserId();
   const rawText = typeof text === "string" ? text.trim() : "";
   if (!rawText) throw new Error("Nothing to save");
   if (rawText.length > MAX_CAPTURE_LENGTH) throw new Error("That dump is too long");
 
   const suggestedKind = guessKind(rawText);
-  const [row] = await db
-    .insert(captures)
-    .values({ userId, rawText, source: "text", suggestedKind, suggestedBy: suggestedKind ? "rules" : null })
-    .returning({ id: captures.id });
+  const row = await insertCapture({
+    ...originValues(origin),
+    userId,
+    rawText,
+    source: "text",
+    suggestedKind,
+    suggestedBy: suggestedKind ? "rules" : null,
+  });
   refresh();
   return row;
 }
 
 /** Saves a voice dump: the transcript (possibly edited) plus the private audio file uploaded from the browser. */
-export async function createVoiceCapture(text: string, audioUrl: string): Promise<{ id: string }> {
+export async function createVoiceCapture(text: string, audioUrl: string, origin?: CaptureOrigin): Promise<{ id: string }> {
   const userId = await requireUserId();
   const url = checkAudioUrl(userId, audioUrl);
   const rawText = (typeof text === "string" ? text.trim() : "").slice(0, MAX_CAPTURE_LENGTH) || "🎙️ Voice note";
   const suggestedKind = guessKind(rawText);
-  const [row] = await db
-    .insert(captures)
-    .values({
-      userId,
-      rawText,
-      source: "voice",
-      audioUrl: url,
-      suggestedKind,
-      suggestedBy: suggestedKind ? "rules" : null,
-    })
-    .returning({ id: captures.id });
+  const row = await insertCapture({
+    ...originValues(origin),
+    userId,
+    rawText,
+    source: "voice",
+    audioUrl: url,
+    suggestedKind,
+    suggestedBy: suggestedKind ? "rules" : null,
+  });
   refresh();
   return row;
 }

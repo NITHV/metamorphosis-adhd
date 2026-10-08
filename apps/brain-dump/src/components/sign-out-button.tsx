@@ -10,6 +10,11 @@ export function SignOutButton() {
       type="button"
       onClick={async () => {
         await authClient.signOut();
+        // Pages cached for offline use contain this account's data; drop them on sign-out.
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter((k) => k.startsWith("pages-")).map((k) => caches.delete(k)));
+        }
         router.push("/sign-in");
         router.refresh();
       }}
