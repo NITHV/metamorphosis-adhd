@@ -15,12 +15,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Brain Dump",
   description: "Catch every thought. Save your place when you switch tasks.",
+  applicationName: "Brain Dump",
+  appleWebApp: { capable: true, title: "Brain Dump", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
+  viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f5ff" },
-    { media: "(prefers-color-scheme: dark)", color: "#13111c" },
+    { media: "(prefers-color-scheme: light)", color: "#ece5d6" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0a" },
   ],
 };
 

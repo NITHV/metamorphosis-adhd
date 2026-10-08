@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getInboxCount, getHomeStats } from "@/lib/stats";
+import { getPileCounts } from "@/lib/items";
 import { Mascot } from "@/components/mascot";
 import { MobileTabBar, SidebarNav } from "@/components/nav";
 import { ToolbarActions } from "@/components/toolbar-actions";
@@ -9,7 +10,7 @@ import { UserMenu } from "@/components/user-menu";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-dvh md:p-4 lg:p-6">
+    <div className="flex h-dvh pt-[env(safe-area-inset-top)] md:p-4 lg:p-6">
       <div className="flex min-h-0 flex-1 overflow-hidden bg-surface md:chunky md:rounded-3xl">
         <aside className="hidden w-60 shrink-0 flex-col border-r-2 border-hairline px-3 py-4 md:flex">
           <Brand />
@@ -64,8 +65,18 @@ function Brand() {
 
 async function SidebarWithCounts() {
   const user = await getCurrentUser();
-  const inbox = await getInboxCount(user.id);
-  return <SidebarNav counts={{ "/inbox": inbox }} />;
+  const [inbox, piles] = await Promise.all([getInboxCount(user.id), getPileCounts(user.id)]);
+  return (
+    <SidebarNav
+      counts={{
+        "/inbox": inbox,
+        "/tasks": piles.task,
+        "/ideas": piles.idea,
+        "/reminders": piles.reminder,
+        "/worries": piles.worry,
+      }}
+    />
+  );
 }
 
 async function StatusLeft() {

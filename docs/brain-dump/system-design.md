@@ -51,7 +51,8 @@ You open the app on your phone or laptop (it's a website you can "install" to yo
 ### Look and feel
 - Warm cream (light) / near-black (dark) theme, chunky outlined cards with hard offset shadows, rounded pill badges.
 - Home: green welcome card (greeting, weekly stats, 13-week activity grid, forgiving day streak) with the original Brain Dump mascot (a small cartoon brain holding a sticky note), then the Dump box and Inbox.
-- Sidebar on desktop (Home, Inbox, Tasks, Ideas, Reminders, Worries, Paused, Settings); bottom tab bar on phones.
+- Sidebar on desktop (Home, Inbox, Tasks, Ideas, Reminders, Worries, Paused, Settings); bottom tab bar on phones (Home, Inbox, Piles, Paused, More).
+- Mobile-first controls: 40px+ tap targets, no hover-only actions, inline action rows instead of popups, safe-area padding, installable to the home screen (web app manifest + icons; offline support comes in milestone 6).
 
 ### Capture
 - One giant **Dump** button on the home screen. Available as a home-screen shortcut and a keyboard shortcut (`Ctrl/Cmd + K`) on desktop.

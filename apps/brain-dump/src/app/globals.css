@@ -103,3 +103,13 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* Mobile polish: no grey tap flash, no double-tap zoom delay on controls. */
+button,
+a,
+summary,
+input,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}

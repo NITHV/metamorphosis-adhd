@@ -4,10 +4,6 @@ import { notFound } from "next/navigation";
 import { Mascot } from "@/components/mascot";
 
 const SECTIONS = {
-  tasks: { title: "Tasks", blurb: "Things to do, pulled out of your dumps.", when: "Arrives with sorting (next step)." },
-  ideas: { title: "Ideas", blurb: "Sparks worth keeping, no pressure to act.", when: "Arrives with sorting (next step)." },
-  reminders: { title: "Reminders", blurb: "Anything with a date or time attached.", when: "Arrives with sorting (next step)." },
-  worries: { title: "Worries", blurb: "A gentle place to park them. Never overdue.", when: "Arrives with sorting (next step)." },
   paused: { title: "Paused", blurb: "Where did I leave off? Voice bookmarks for task switching.", when: "Coming in a later step." },
   settings: { title: "Settings", blurb: "AI assist switch, delete everything, and more.", when: "Coming in a later step." },
 } as const;

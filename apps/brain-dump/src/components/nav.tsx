@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BellIcon,
+  LayersIcon,
   BulbIcon,
   CheckCircleIcon,
   CloudIcon,
@@ -33,7 +34,12 @@ export type NavCounts = Partial<Record<string, number>>;
 
 function useIsActive() {
   const pathname = usePathname();
-  return (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  return (href: string) => {
+    if (href === "/") return pathname === "/";
+    // On phones the Piles tab stays lit inside any single pile.
+    if (href === "/piles") return ["/piles", "/tasks", "/ideas", "/reminders", "/worries"].some((p) => pathname.startsWith(p));
+    return pathname.startsWith(href);
+  };
 }
 
 function SideLink({ item, count, active }: { item: NavItem; count?: number; active: boolean }) {
@@ -84,7 +90,7 @@ export function SidebarNav({ counts }: { counts: NavCounts }) {
 const TABS: NavItem[] = [
   MAIN[0],
   MAIN[1],
-  { href: "/tasks", label: "Tasks", icon: CheckCircleIcon },
+  { href: "/piles", label: "Piles", icon: LayersIcon },
   PAUSED,
   { href: "/settings", label: "More", icon: SettingsIcon },
 ];

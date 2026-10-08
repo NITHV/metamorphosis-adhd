@@ -1,19 +1,11 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { Mascot } from "@/components/mascot";
+import { useIsClient } from "@/components/use-is-client";
 import type { HomeStats } from "@/lib/stats";
 
 const WEEKS = 13;
-
-// true in the browser, false during server render: dates and greetings depend on the
-// viewer's clock and timezone, so they're only computed client-side.
-const useIsClient = () =>
-  useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
 
 function dayKey(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;

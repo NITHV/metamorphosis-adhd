@@ -82,3 +82,9 @@ export const SearchIcon = (p: IconProps) => (
     <path d="m20 20-3.5-3.5" />
   </Icon>
 );
+export const LayersIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m12 3 9 5-9 5-9-5z" />
+    <path d="m3 13 9 5 9-5" />
+  </Icon>
+);
