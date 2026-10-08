@@ -1,8 +1,13 @@
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { neon } from "@neondatabase/serverless";
 import { drizzle, type NeonHttpDatabase } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
 export type Db = NeonHttpDatabase<typeof schema>;
+
+// Node tries IPv6 and IPv4 addresses in turn, giving each only 250ms by default. On slower
+// networks every attempt can time out ("fetch failed"), so allow each one a full second.
+setDefaultAutoSelectFamilyAttemptTimeout(1000);
 
 function createDb(): Db {
   const url = process.env.DATABASE_URL;

@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { upload } from "@vercel/blob/client";
 import { startTransition, useEffect, useOptimistic, useRef, useState } from "react";
 import { ToastBar, useToast } from "@/components/toast";
 import {
   archiveCapture,
   createCapture,
+  createVoiceCapture,
   restoreCapture,
   sortCapture,
   splitCapture,
   unsortCapture,
 } from "@/app/actions";
-import { FOCUS_DUMP_EVENT } from "@/components/toolbar-actions";
-import { InboxIcon } from "@/components/icons";
+import { FOCUS_DUMP_EVENT, OPEN_VOICE_EVENT } from "@/components/toolbar-actions";
+import { InboxIcon, MicIcon } from "@/components/icons";
+import { PlayButton } from "@/components/voice/play-button";
+import { VoiceRecorder } from "@/components/voice/voice-recorder";
 import { RelativeTime, formatDue } from "@/components/time";
 import { useIsClient } from "@/components/use-is-client";
 import type { InboxCapture } from "@/lib/captures";
@@ -25,10 +29,12 @@ type OptimisticAction =
   | { type: "remove"; id: string };
 
 export function DumpInbox({
+  userId,
   captures,
   limit,
   autoFocus = true,
 }: {
+  userId: string;
   captures: InboxCapture[];
   /** Show only the newest N, with a "See all" link (used on Home). */
   limit?: number;
@@ -39,6 +45,7 @@ export function DumpInbox({
   );
   const [text, setText] = useState("");
   const { toast, showToast, hideToast } = useToast();
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Ctrl/⌘ + K (or the pencil in the toolbar) jumps to the capture box.
@@ -50,13 +57,33 @@ export function DumpInbox({
         focus();
       }
     }
+    const openVoice = () => setVoiceOpen(true);
     window.addEventListener("keydown", onKey);
     window.addEventListener(FOCUS_DUMP_EVENT, focus);
+    window.addEventListener(OPEN_VOICE_EVENT, openVoice);
+    // The toolbar mic on other pages links here with ?voice=1.
+    if (new URLSearchParams(window.location.search).get("voice") === "1") {
+      window.history.replaceState(null, "", window.location.pathname);
+      openVoice();
+    }
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(FOCUS_DUMP_EVENT, focus);
+      window.removeEventListener(OPEN_VOICE_EVENT, openVoice);
     };
   }, []);
+
+  /** Uploads the recording to the private Blob store, then saves the dump. */
+  async function saveVoice(transcript: string, audio: Blob) {
+    const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+    const blob = await upload(`voice/${userId}/${Date.now()}.${ext}`, audio, {
+      access: "private",
+      handleUploadUrl: "/api/audio/upload",
+      contentType: audio.type || "audio/webm",
+    });
+    await createVoiceCapture(transcript, blob.url);
+    showToast({ message: "Voice dump saved ✓" });
+  }
 
   /** Runs a server action with an optimistic update, and reports failures without losing anything. */
   function run(optimistic: OptimisticAction, action: () => Promise<unknown>, onDone: () => void, onError: string) {
@@ -80,6 +107,7 @@ export function DumpInbox({
       id: `temp-${Date.now()}`,
       rawText: value,
       suggestedKind: guessKind(value),
+      hasAudio: false,
       createdAt: new Date().toISOString(),
     };
     startTransition(async () => {
@@ -127,6 +155,7 @@ export function DumpInbox({
           id: `temp-split-${c.id}-${i}`,
           rawText,
           suggestedKind: guessKind(rawText),
+          hasAudio: false,
           createdAt: c.createdAt,
         })),
       });
@@ -174,6 +203,17 @@ export function DumpInbox({
         />
         <div className="mt-2 flex items-center justify-between gap-3">
           <ShortcutHint />
+          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setVoiceOpen(true)}
+            aria-label="Record a voice dump"
+            title="Voice dump"
+            className="chunky-sm press flex h-12 w-12 items-center justify-center rounded-xl bg-card sm:h-11 sm:w-11"
+            style={{ color: "var(--pill-red)" }}
+          >
+            <MicIcon className="h-5 w-5" />
+          </button>
           <button
             type="submit"
             disabled={!text.trim()}
@@ -181,8 +221,11 @@ export function DumpInbox({
           >
             Dump it
           </button>
+          </div>
         </div>
       </form>
+
+      {voiceOpen && <VoiceRecorder onSave={saveVoice} onClose={() => setVoiceOpen(false)} />}
 
       <section className="mt-8" aria-labelledby="inbox-heading">
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -274,6 +317,11 @@ function InboxRow({
 
       {!pending && (
         <div className="mt-2.5 pl-9 sm:pl-10">
+          {c.hasAudio && (
+            <div className="mb-2">
+              <PlayButton captureId={c.id} />
+            </div>
+          )}
           {due && (
             <p className="mb-2 text-xs font-semibold" style={{ color: KIND_META.reminder.color }}>
               📅 {formatDue(due.date)}

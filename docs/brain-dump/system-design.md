@@ -132,7 +132,7 @@ You open the app on your phone or laptop (it's a website you can "install" to yo
 | File storage | **Vercel Blob** | Stores voice recordings; free tier is plenty for short notes |
 | Auth | **Better Auth**: Google sign-in + **email/password** | Free. Passwords are stored hashed. Magic links postponed (would send via Gmail + Nodemailer, free) |
 | Smart guess | **Keyword rules + `chrono-node`** | Free, instant, runs on the device, private |
-| Voice → text | **Web Speech API** in the browser | Free. Works in Chrome, Edge and Safari; type instead on Firefox |
+| Voice → text | **Web Speech API** for live words (desktop) + **on-device Whisper** (tiny.en via transformers.js in a Web Worker) | Free. Whisper runs fully on the device (one-time ~40 MB model download, cached) and covers phones, Firefox, and "improve transcript". Note: Chrome/Edge live recognition sends audio to Google/Microsoft |
 | AI assist (optional) | **Vercel AI SDK** + a **free-tier** provider (Groq or Google Gemini) | Free up to daily limits. Switching provider is a one-line change, so better AI (e.g. Claude) can be plugged in later if you ever get credits |
 | Offline | **Service worker + IndexedDB queue** | Captures never get lost on a bad connection |
 
@@ -190,7 +190,8 @@ One capture → one or more items. Items keep a link back to the original captur
 ## 6. Privacy and security
 
 - Every database query is filtered by the signed-in user's ID. You can only ever see your own data.
-- Audio files are stored with unguessable URLs and are only served to their owner.
+- Audio files live in a **private** Vercel Blob store and are only served to their owner through an authenticated route (with HTTP Range support for Safari). Uploads go straight from the browser to Blob using short-lived tokens restricted to the user's own folder and audio types.
+- Live transcription in Chrome/Edge uses the browser vendor's speech service; on-device Whisper keeps audio local. Both are explained on the privacy page.
 - **AI assist is off by default.** With it off, your words never leave the app's own servers.
 - 🔒 Private captures are never sent to AI, even with assist on.
 - Free AI tiers may use what you send to improve their models; check the provider's current terms before turning AI assist on. (This is why it's off by default and private mode exists.)

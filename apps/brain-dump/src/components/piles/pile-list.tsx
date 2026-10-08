@@ -6,6 +6,7 @@ import { archiveDone, moveItem, setItemArchived, setItemDone, setItemDue } from 
 import { formatDue } from "@/components/time";
 import { ToastBar, useToast } from "@/components/toast";
 import { useIsClient } from "@/components/use-is-client";
+import { PlayButton } from "@/components/voice/play-button";
 import type { PileItem } from "@/lib/items";
 import { KIND_META, KINDS, type Kind } from "@/lib/kinds";
 
@@ -203,6 +204,11 @@ function Row({
           <p className={`whitespace-pre-wrap break-words leading-snug ${done ? "text-muted line-through" : ""}`}>
             {item.title}
           </p>
+          {item.audioCaptureId && (
+            <div className="mt-1.5">
+              <PlayButton captureId={item.audioCaptureId} />
+            </div>
+          )}
           {due && isClient && (
             <p
               className="mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"

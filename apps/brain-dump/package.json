@@ -11,6 +11,7 @@
   "dependencies": {
     "@repo/auth": "^0.0.0",
     "@repo/db": "^0.0.0",
+    "@vercel/blob": "^2.8.1",
     "chrono-node": "^2.10.2",
     "drizzle-orm": "^0.45.3",
     "next": "16.4.0",

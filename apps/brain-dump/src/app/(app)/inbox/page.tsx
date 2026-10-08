@@ -21,5 +21,5 @@ export default function InboxPage() {
 async function FullInbox() {
   const user = await getCurrentUser();
   const captures = await getInboxCaptures(user.id);
-  return <DumpInbox captures={captures} />;
+  return <DumpInbox userId={user.id} captures={captures} />;
 }

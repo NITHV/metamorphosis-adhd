@@ -9,6 +9,7 @@ export type InboxCapture = {
   id: string;
   rawText: string;
   suggestedKind: Kind | null;
+  hasAudio: boolean;
   createdAt: string; // ISO, so it can cross into Client Components
 };
 
@@ -19,11 +20,16 @@ export async function getInboxCaptures(userId: string): Promise<InboxCapture[]> 
       id: captures.id,
       rawText: captures.rawText,
       suggestedKind: captures.suggestedKind,
+      audioUrl: captures.audioUrl,
       createdAt: captures.createdAt,
     })
     .from(captures)
     .where(and(eq(captures.userId, userId), eq(captures.status, "inbox")))
     .orderBy(desc(captures.createdAt))
     .limit(200);
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  return rows.map(({ audioUrl, ...r }) => ({
+    ...r,
+    hasAudio: Boolean(audioUrl),
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

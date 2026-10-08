@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   description: "Catch every thought. Save your place when you switch tasks.",
   applicationName: "Brain Dump",
   appleWebApp: { capable: true, title: "Brain Dump", statusBarStyle: "default" },
-  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

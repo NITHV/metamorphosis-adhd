@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         ← Brain Dump
       </Link>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted">Last updated: October 8, 2026</p>
+      <p className="mt-2 text-sm text-muted">Last updated: October 8, 2026 (added voice notes)</p>
 
       <div className="mt-8 flex flex-col gap-6 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5">
         <p>
@@ -58,6 +58,17 @@ export default function PrivacyPage() {
           <p>
             Data is stored with the app&apos;s hosting providers: Vercel (hosting and file storage) and
             Neon (database). Passwords are stored only as secure hashes.
+          </p>
+        </section>
+
+        <section>
+          <h2>Voice notes</h2>
+          <p>
+            Voice recordings are stored privately and can only be played back by you. To show words while
+            you speak, the app uses your browser&apos;s built-in speech recognition; in Chrome and Edge this
+            sends the audio to the browser maker&apos;s speech service (Google or Microsoft). The
+            &ldquo;Transcribe on this device&rdquo; option runs entirely on your phone or computer and sends
+            your audio nowhere.
           </p>
         </section>
 

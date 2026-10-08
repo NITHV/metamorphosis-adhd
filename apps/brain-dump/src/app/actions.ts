@@ -43,6 +43,36 @@ export async function createCapture(text: string): Promise<{ id: string }> {
   return row;
 }
 
+/** Saves a voice dump: the transcript (possibly edited) plus the private audio file uploaded from the browser. */
+export async function createVoiceCapture(text: string, audioUrl: string): Promise<{ id: string }> {
+  const userId = await requireUserId();
+  let url: URL;
+  try {
+    url = new URL(audioUrl);
+  } catch {
+    throw new Error("Bad audio link");
+  }
+  // Only accept files in this user's own folder of our Blob store.
+  if (!url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/voice/${userId}/`)) {
+    throw new Error("Bad audio link");
+  }
+  const rawText = (typeof text === "string" ? text.trim() : "").slice(0, MAX_CAPTURE_LENGTH) || "🎙️ Voice note";
+  const suggestedKind = guessKind(rawText);
+  const [row] = await db
+    .insert(captures)
+    .values({
+      userId,
+      rawText,
+      source: "voice",
+      audioUrl: url.toString(),
+      suggestedKind,
+      suggestedBy: suggestedKind ? "rules" : null,
+    })
+    .returning({ id: captures.id });
+  refresh();
+  return row;
+}
+
 async function setCaptureStatus(id: string, status: "inbox" | "archived") {
   const userId = await requireUserId();
   await db

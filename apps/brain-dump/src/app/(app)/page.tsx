@@ -27,5 +27,5 @@ async function Hero() {
 async function HomeInbox() {
   const user = await getCurrentUser();
   const captures = await getInboxCaptures(user.id);
-  return <DumpInbox captures={captures} limit={5} />;
+  return <DumpInbox userId={user.id} captures={captures} limit={5} />;
 }

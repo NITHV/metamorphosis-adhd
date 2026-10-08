@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db, schema } from "@repo/db";
 import type { Kind } from "./kinds";
 
-const { items } = schema;
+const { items, captures } = schema;
 
 export type PileItem = {
   id: string;
@@ -13,6 +13,8 @@ export type PileItem = {
   dueAt: string | null;
   doneAt: string | null;
   createdAt: string;
+  /** Set when the item came from a voice dump; audio is served by /api/audio/[captureId]. */
+  audioCaptureId: string | null;
 };
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -21,8 +23,9 @@ const iso = (d: Date | null) => (d ? d.toISOString() : null);
 export async function getPileItems(userId: string, kind: Kind): Promise<PileItem[]> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const rows = await db
-    .select()
+    .select({ item: items, audioUrl: captures.audioUrl })
     .from(items)
+    .leftJoin(captures, eq(captures.id, items.captureId))
     .where(
       and(
         eq(items.userId, userId),
@@ -33,13 +36,14 @@ export async function getPileItems(userId: string, kind: Kind): Promise<PileItem
     )
     .orderBy(kind === "reminder" ? sql`${items.dueAt} asc nulls last` : desc(items.createdAt), asc(items.id))
     .limit(500);
-  return rows.map((r) => ({
+  return rows.map(({ item: r, audioUrl }) => ({
     id: r.id,
     kind: r.kind,
     title: r.title,
     dueAt: iso(r.dueAt),
     doneAt: iso(r.doneAt),
     createdAt: r.createdAt.toISOString(),
+    audioCaptureId: audioUrl ? r.captureId : null,
   }));
 }
 
