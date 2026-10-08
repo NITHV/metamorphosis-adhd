@@ -1,36 +1,100 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f5ff;
-  --foreground: #1c1830;
-  --muted: #6b6582;
-  --card: #ffffff;
-  --border: #e4e0f2;
-  --accent: #5b3fd6;
-  --accent-foreground: #ffffff;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --background: #ece5d6;
+  --surface: #f7f2e8;
+  --card: #fffdf7;
+  --foreground: #1c1b18;
+  --muted: #6e695e;
+  --ink: #1c1b18; /* chunky borders + offset shadows */
+  --hairline: #e3dccd;
+  --brand: #2f9e66;
+  --brand-foreground: #10140f;
+  --brand-soft: #d9f0e2;
+  --nav-active: #f6d98a;
+  --nav-active-foreground: #3b2a07;
+  --pill-blue: #3d7ff0;
+  --pill-blue-soft: #d6e5ff;
+  --pill-green: #2f9e66;
+  --pill-green-soft: #d9f0e2;
+  --pill-purple: #7b61e8;
+  --pill-purple-soft: #e5defd;
+  --pill-red: #e0443e;
+  --pill-red-soft: #fbdcda;
+  --pill-orange: #f29a1f;
+  --pill-orange-soft: #fde7c6;
+  --heat-0: #ece6d8;
+  --heat-1: #b9e2c8;
+  --heat-2: #7cc89d;
+  --heat-3: #3fa771;
+  --heat-4: #1f7a4c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #13111c;
-    --foreground: #ece9f7;
-    --muted: #9c96b3;
-    --card: #1d1a2a;
-    --border: #2e2a40;
-    --accent: #8b73ff;
-    --accent-foreground: #13111c;
+    --background: #0b0b0a;
+    --surface: #131312;
+    --card: #1a1a18;
+    --foreground: #f1eee6;
+    --muted: #a39e92;
+    --ink: #3b3934;
+    --hairline: #2a2926;
+    --brand: #5aa877;
+    --brand-foreground: #0d120e;
+    --brand-soft: #1d3326;
+    --nav-active: #3a2e1b;
+    --nav-active-foreground: #f6c66a;
+    --pill-blue: #5d95f5;
+    --pill-blue-soft: #1c2b47;
+    --pill-green: #5aa877;
+    --pill-green-soft: #1d3326;
+    --pill-purple: #9b86f2;
+    --pill-purple-soft: #2a2347;
+    --pill-red: #ef6560;
+    --pill-red-soft: #43201e;
+    --pill-orange: #f4ab45;
+    --pill-orange-soft: #40301a;
+    --heat-0: #262624;
+    --heat-1: #24452f;
+    --heat-2: #2f6b45;
+    --heat-3: #48955f;
+    --heat-4: #6fca8a;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-ink: var(--ink);
+  --color-hairline: var(--hairline);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-foreground: var(--nav-active-foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* The signature look: thick outline + hard offset shadow. */
+@utility chunky {
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+@utility chunky-sm {
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+@utility press {
+  transition: transform 80ms ease, box-shadow 80ms ease;
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 var(--ink);
   }
 }
 

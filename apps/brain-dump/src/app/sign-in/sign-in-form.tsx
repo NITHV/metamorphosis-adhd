@@ -44,20 +44,20 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
           <button
             type="button"
             onClick={() => authClient.signIn.social({ provider: "google", callbackURL: "/" })}
-            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card font-medium transition hover:bg-background"
+            className="chunky-sm press flex h-11 items-center justify-center gap-2 rounded-xl bg-card font-semibold"
           >
             <GoogleIcon />
             Continue with Google
           </button>
           <div className="flex items-center gap-3 text-xs text-muted">
-            <span className="h-px flex-1 bg-border" />
+            <span className="h-px flex-1 bg-hairline" />
             or
-            <span className="h-px flex-1 bg-border" />
+            <span className="h-px flex-1 bg-hairline" />
           </div>
         </>
       )}
 
-      <div className="grid grid-cols-2 rounded-xl bg-background p-1 text-sm font-medium" role="tablist">
+      <div className="grid grid-cols-2 rounded-xl bg-surface p-1 text-sm font-medium" role="tablist">
         {(["sign-in", "sign-up"] as const).map((m) => (
           <button
             key={m}
@@ -65,7 +65,7 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
             role="tab"
             aria-selected={mode === m}
             onClick={() => switchMode(m)}
-            className={`h-9 rounded-lg transition ${mode === m ? "bg-card shadow-sm" : "text-muted hover:text-foreground"}`}
+            className={`h-9 rounded-lg transition ${mode === m ? "chunky-sm bg-card" : "text-muted hover:text-foreground"}`}
           >
             {m === "sign-in" ? "Sign in" : "Create account"}
           </button>
@@ -113,7 +113,7 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
         <button
           type="submit"
           disabled={pending}
-          className="mt-1 h-11 rounded-xl bg-accent font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-60"
+          className="chunky-sm press mt-1 h-11 rounded-xl bg-brand font-bold text-brand-foreground disabled:opacity-60"
         >
           {pending ? "One sec…" : mode === "sign-in" ? "Sign in" : "Create account"}
         </button>
@@ -124,7 +124,7 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
 }
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-border bg-background px-3 outline-none focus:border-accent";
+  "h-11 w-full rounded-xl border-2 border-hairline bg-surface px-3 outline-none focus:border-ink";
 
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
   return (

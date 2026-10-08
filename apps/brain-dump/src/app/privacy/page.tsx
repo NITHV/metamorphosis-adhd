@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 leading-relaxed">
-      <Link href="/" className="text-sm text-accent underline-offset-4 hover:underline">
+      <Link href="/" className="text-sm text-[var(--pill-blue)] underline-offset-4 hover:underline">
         ← Brain Dump
       </Link>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">Privacy Policy</h1>
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             on the project&apos;s{" "}
             <a
               href="https://github.com/NITHV/metamorphosis-adhd/issues"
-              className="text-accent underline-offset-4 hover:underline"
+              className="text-[var(--pill-blue)] underline-offset-4 hover:underline"
             >
               GitHub page
             </a>

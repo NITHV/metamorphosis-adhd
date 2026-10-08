@@ -48,6 +48,11 @@ You open the app on your phone or laptop (it's a website you can "install" to yo
 
 ## 2. Features (version 1)
 
+### Look and feel
+- Warm cream (light) / near-black (dark) theme, chunky outlined cards with hard offset shadows, rounded pill badges.
+- Home: green welcome card (greeting, weekly stats, 13-week activity grid, forgiving day streak) with the original Brain Dump mascot (a small cartoon brain holding a sticky note), then the Dump box and Inbox.
+- Sidebar on desktop (Home, Inbox, Tasks, Ideas, Reminders, Worries, Paused, Settings); bottom tab bar on phones.
+
 ### Capture
 - One giant **Dump** button on the home screen. Available as a home-screen shortcut and a keyboard shortcut (`Ctrl/Cmd + K`) on desktop.
 - **Text** or **voice**. Voice is turned into text live in the browser (Web Speech API, free) and the audio is also kept so you can replay it.
