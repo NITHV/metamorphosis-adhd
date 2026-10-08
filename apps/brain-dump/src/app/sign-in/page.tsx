@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { isGoogleEnabled } from "@repo/auth/server";
 import { SignInForm } from "./sign-in-form";
 
@@ -10,6 +11,11 @@ export default function SignInPage() {
         <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
           <SignInForm googleEnabled={isGoogleEnabled} />
         </div>
+        <p className="mt-6 text-center text-xs text-muted">
+          <Link href="/privacy" className="underline-offset-4 hover:underline">
+            Privacy policy
+          </Link>
+        </p>
       </div>
     </main>
   );
