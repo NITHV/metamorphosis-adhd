@@ -9,7 +9,7 @@ import { isKind, type Kind } from "@/lib/kinds";
 import { MAX_CAPTURE_LENGTH } from "@/lib/limits";
 import { guessKind, splitDump } from "@/lib/smart-guess";
 
-const { captures, items } = schema;
+const { captures, items, checkpoints } = schema;
 
 // Server Actions are public endpoints, so each one re-checks the session itself.
 async function requireUserId(): Promise<string> {
@@ -23,6 +23,22 @@ function parseDue(value: string | null | undefined): Date | null {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+/** Accepts only audio files in this user's own folder of our Blob store. */
+function checkAudioUrl(userId: string, audioUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(audioUrl);
+  } catch {
+    throw new Error("Bad audio link");
+  }
+  if (!url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/voice/${userId}/`)) {
+    throw new Error("Bad audio link");
+  }
+  return url.toString();
+}
+
+const clip = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 // ---------------------------------------------------------------------------
 // Captures (inbox)
@@ -46,16 +62,7 @@ export async function createCapture(text: string): Promise<{ id: string }> {
 /** Saves a voice dump: the transcript (possibly edited) plus the private audio file uploaded from the browser. */
 export async function createVoiceCapture(text: string, audioUrl: string): Promise<{ id: string }> {
   const userId = await requireUserId();
-  let url: URL;
-  try {
-    url = new URL(audioUrl);
-  } catch {
-    throw new Error("Bad audio link");
-  }
-  // Only accept files in this user's own folder of our Blob store.
-  if (!url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/voice/${userId}/`)) {
-    throw new Error("Bad audio link");
-  }
+  const url = checkAudioUrl(userId, audioUrl);
   const rawText = (typeof text === "string" ? text.trim() : "").slice(0, MAX_CAPTURE_LENGTH) || "🎙️ Voice note";
   const suggestedKind = guessKind(rawText);
   const [row] = await db
@@ -64,7 +71,7 @@ export async function createVoiceCapture(text: string, audioUrl: string): Promis
       userId,
       rawText,
       source: "voice",
-      audioUrl: url.toString(),
+      audioUrl: url,
       suggestedKind,
       suggestedBy: suggestedKind ? "rules" : null,
     })
@@ -199,4 +206,84 @@ export async function archiveDone(ids: string[]) {
     .set({ archivedAt: new Date() })
     .where(and(eq(items.userId, userId), inArray(items.id, ids.slice(0, 500))));
   refresh();
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoints ("Where did I leave off?")
+// ---------------------------------------------------------------------------
+
+export type CheckpointInput = {
+  transcript?: string;
+  nextStep?: string;
+  label?: string;
+  projectTag?: string;
+  link?: string;
+  audioUrl?: string | null;
+};
+
+/** Saves a "here's where I was" bookmark before switching tasks. */
+export async function createCheckpoint(input: CheckpointInput): Promise<{ id: string }> {
+  const userId = await requireUserId();
+  const transcript = clip(input.transcript, MAX_CAPTURE_LENGTH);
+  const nextStep = clip(input.nextStep, 500) || null;
+  if (!transcript && !nextStep && !input.audioUrl) throw new Error("Nothing to save");
+
+  // Links are only kept if they're plain web addresses (no javascript: or similar).
+  let link: string | null = null;
+  const rawLink = clip(input.link, 2000);
+  if (rawLink) {
+    try {
+      const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(rawLink) ? rawLink : `https://${rawLink}`);
+      if (u.protocol === "https:" || u.protocol === "http:") link = u.toString();
+    } catch {
+      // not a usable link; drop it rather than fail the whole save
+    }
+  }
+
+  const [row] = await db
+    .insert(checkpoints)
+    .values({
+      userId,
+      transcript,
+      nextStep,
+      label: clip(input.label, 200) || null,
+      projectTag: clip(input.projectTag, 60) || null,
+      link,
+      audioUrl: input.audioUrl ? checkAudioUrl(userId, input.audioUrl) : null,
+    })
+    .returning({ id: checkpoints.id });
+  refresh();
+  return row;
+}
+
+async function updateCheckpoint(id: string, values: Partial<typeof checkpoints.$inferInsert>) {
+  const userId = await requireUserId();
+  await db
+    .update(checkpoints)
+    .set(values)
+    .where(and(eq(checkpoints.id, id), eq(checkpoints.userId, userId)));
+  refresh();
+}
+
+/** "I'm back on it": moves the bookmark to history. */
+export async function resumeCheckpoint(id: string) {
+  await updateCheckpoint(id, { resumedAt: new Date() });
+}
+
+export async function unresumeCheckpoint(id: string) {
+  await updateCheckpoint(id, { resumedAt: null });
+}
+
+/** "Let it go": the task doesn't need finishing after all. */
+export async function dismissCheckpoint(id: string) {
+  await updateCheckpoint(id, { dismissedAt: new Date() });
+}
+
+export async function undismissCheckpoint(id: string) {
+  await updateCheckpoint(id, { dismissedAt: null });
+}
+
+/** "Still relevant": resets the 7-day nudge (updated_at bumps automatically). */
+export async function keepCheckpoint(id: string) {
+  await updateCheckpoint(id, { updatedAt: new Date() });
 }

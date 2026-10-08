@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/** Compact play/pause for a voice note served by /api/audio/[captureId]. */
-export function PlayButton({ captureId }: { captureId: string }) {
+/** Compact play/pause for a voice note served by /api/audio/[id] (a dump or a pause checkpoint). */
+export function PlayButton({ audioId }: { audioId: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "error">("idle");
 
@@ -12,7 +12,7 @@ export function PlayButton({ captureId }: { captureId: string }) {
   function toggle() {
     let audio = audioRef.current;
     if (!audio) {
-      audio = new Audio(`/api/audio/${captureId}`);
+      audio = new Audio(`/api/audio/${audioId}`);
       audio.addEventListener("playing", () => setState("playing"));
       audio.addEventListener("pause", () => setState("idle"));
       audio.addEventListener("ended", () => setState("idle"));

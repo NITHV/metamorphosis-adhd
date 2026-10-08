@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { Mascot } from "@/components/mascot";
 
 const SECTIONS = {
-  paused: { title: "Paused", blurb: "Where did I leave off? Voice bookmarks for task switching.", when: "Coming in a later step." },
   settings: { title: "Settings", blurb: "AI assist switch, delete everything, and more.", when: "Coming in a later step." },
 } as const;
 

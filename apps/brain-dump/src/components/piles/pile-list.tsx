@@ -206,7 +206,7 @@ function Row({
           </p>
           {item.audioCaptureId && (
             <div className="mt-1.5">
-              <PlayButton captureId={item.audioCaptureId} />
+              <PlayButton audioId={item.audioCaptureId} />
             </div>
           )}
           {due && isClient && (

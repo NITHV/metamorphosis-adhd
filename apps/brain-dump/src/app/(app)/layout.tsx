@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getInboxCount, getHomeStats } from "@/lib/stats";
 import { getPileCounts } from "@/lib/items";
+import { getPausedCount } from "@/lib/checkpoints";
+import { PauseLauncher } from "@/components/pause/pause-launcher";
 import { Mascot } from "@/components/mascot";
 import { MobileTabBar, SidebarNav } from "@/components/nav";
 import { ToolbarActions } from "@/components/toolbar-actions";
@@ -50,6 +52,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <MobileTabBar />
+      <Suspense fallback={null}>
+        <PauseLauncherForUser />
+      </Suspense>
     </div>
   );
 }
@@ -65,7 +70,11 @@ function Brand() {
 
 async function SidebarWithCounts() {
   const user = await getCurrentUser();
-  const [inbox, piles] = await Promise.all([getInboxCount(user.id), getPileCounts(user.id)]);
+  const [inbox, piles, paused] = await Promise.all([
+    getInboxCount(user.id),
+    getPileCounts(user.id),
+    getPausedCount(user.id),
+  ]);
   return (
     <SidebarNav
       counts={{
@@ -74,6 +83,7 @@ async function SidebarWithCounts() {
         "/ideas": piles.idea,
         "/reminders": piles.reminder,
         "/worries": piles.worry,
+        "/paused": paused,
       }}
     />
   );
@@ -87,4 +97,9 @@ async function StatusLeft() {
       {totalNotes} {totalNotes === 1 ? "note" : "notes"} · Saved to the cloud
     </span>
   );
+}
+
+async function PauseLauncherForUser() {
+  const user = await getCurrentUser();
+  return <PauseLauncher userId={user.id} />;
 }

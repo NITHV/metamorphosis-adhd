@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { MicIcon, PencilIcon, SearchIcon } from "./icons";
+import { MicIcon, PauseIcon, PencilIcon, SearchIcon } from "./icons";
+import { openPause } from "./pause/pause-launcher";
 
 export const FOCUS_DUMP_EVENT = "brain-dump:focus";
 export const OPEN_VOICE_EVENT = "brain-dump:voice";
@@ -24,6 +25,14 @@ export function ToolbarActions() {
         className={`${btn} hover:bg-hairline/60 hover:text-foreground`}
       >
         <PencilIcon />
+      </button>
+      <button
+        type="button"
+        title="Pause what I'm doing"
+        onClick={openPause}
+        className={`${btn} hover:bg-hairline/60 hover:text-foreground`}
+      >
+        <PauseIcon />
       </button>
       <button
         type="button"

@@ -45,7 +45,11 @@ function pickMimeType() {
 export function VoiceRecorder({
   onSave,
   onClose,
+  saveLabel = "Save dump",
+  title = "Voice dump",
 }: {
+  saveLabel?: string;
+  title?: string;
   /** Uploads and saves the note. Throws on failure so the recorder can show it. */
   onSave: (text: string, audio: Blob) => Promise<void>;
   onClose: () => void;
@@ -229,7 +233,7 @@ export function VoiceRecorder({
   const mmss = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label="Voice dump">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
       <div className="chunky w-full rounded-t-3xl bg-card p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-3xl sm:pb-5">
         {(phase.name === "starting" || phase.name === "recording") && (
           <div className="flex flex-col items-center text-center">
@@ -267,7 +271,7 @@ export function VoiceRecorder({
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold">
-                <MicIcon /> Voice dump · {mmss}
+                <MicIcon /> {title} · {mmss}
               </h2>
             </div>
 
@@ -338,7 +342,7 @@ export function VoiceRecorder({
                 disabled={phase.name !== "review"}
                 className="chunky-sm press h-12 flex-[2] rounded-xl bg-brand font-bold text-brand-foreground disabled:opacity-60 sm:h-11"
               >
-                {phase.name === "saving" ? "Saving…" : "Save dump"}
+                {phase.name === "saving" ? "Saving…" : saveLabel}
               </button>
             </div>
           </div>

@@ -319,7 +319,7 @@ function InboxRow({
         <div className="mt-2.5 pl-9 sm:pl-10">
           {c.hasAudio && (
             <div className="mb-2">
-              <PlayButton captureId={c.id} />
+              <PlayButton audioId={c.id} />
             </div>
           )}
           {due && (
