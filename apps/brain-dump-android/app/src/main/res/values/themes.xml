@@ -1,0 +1,12 @@
+<resources>
+    <!-- Splash screen while the app starts, then the Compose theme takes over. -->
+    <style name="Theme.BrainDump.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.BrainDump</item>
+    </style>
+
+    <style name="Theme.BrainDump" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+</resources>

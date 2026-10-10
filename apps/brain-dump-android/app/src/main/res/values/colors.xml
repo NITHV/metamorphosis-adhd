@@ -1,0 +1,5 @@
+<resources>
+    <!-- Same palette as the website (apps/brain-dump/src/app/globals.css). -->
+    <color name="brand">#2F9E66</color>
+    <color name="background">#ECE5D6</color>
+</resources>
