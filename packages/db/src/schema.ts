@@ -76,7 +76,7 @@ export const verification = pgTable(
 // Brain Dump tables (design doc §4)
 // ---------------------------------------------------------------------------
 
-export const captureSource = pgEnum("capture_source", ["text", "voice"]);
+export const captureSource = pgEnum("capture_source", ["text", "voice", "photo"]);
 export const captureStatus = pgEnum("capture_status", ["inbox", "sorted", "archived"]);
 export const itemKind = pgEnum("item_kind", ["task", "idea", "reminder", "worry"]);
 export const suggestedBy = pgEnum("suggested_by", ["rules", "ai"]);
@@ -91,6 +91,7 @@ export const captures = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     rawText: text("raw_text").notNull(),
     audioUrl: text("audio_url"),
+    photoUrl: text("photo_url"),
     source: captureSource("source").notNull().default("text"),
     isPrivate: boolean("is_private").notNull().default(false),
     status: captureStatus("status").notNull().default("inbox"),
