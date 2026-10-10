@@ -269,7 +269,7 @@ Notes:
 4. ✅ Voice capture + audio storage.
 5. ✅ Pause / Resume.
 6. ✅ PWA install + offline queue.
-7. **Photo dumps** (camera or gallery, optional caption, shrink + GPS strip on the device, private storage, offline outbox, thumbnails and full-screen view) **+ home-screen shortcuts + Share to Brain Dump.**
+7. ✅ **Photo dumps** (camera or gallery, optional caption, shrink + GPS strip on the device, private storage, offline outbox, thumbnails and full-screen view) **+ home-screen shortcuts + Share to Brain Dump.**
 8. Polish: search, delete-everything (incl. photos), settings page, empty states.
 
 Running alongside: the separate **Brain Dump Android app** (phone-only, native, with real home-screen widgets), see `docs/brain-dump-android/system-design.md`. The two share no code or data.
