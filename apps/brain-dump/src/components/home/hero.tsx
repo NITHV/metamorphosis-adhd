@@ -11,11 +11,12 @@ function dayKey(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function greeting(hour: number) {
-  if (hour < 5) return "Up late";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+/** Midnight to 5 AM gets a gentler line: late-night spirals are prime dumping time. */
+function greeting(hour: number, name: string) {
+  if (hour < 5) return `Hey ${name}, night owl 🦉`;
+  if (hour < 12) return `Good morning, ${name}`;
+  if (hour < 17) return `Good afternoon, ${name}`;
+  return `Good evening, ${name}`;
 }
 
 /** Consecutive active days. One missed day is forgiven; two in a row ends the streak. */
@@ -72,7 +73,7 @@ export function HeroCard({ name, stats }: { name: string; stats: HomeStats }) {
         <Mascot className="h-16 w-16 shrink-0 sm:h-28 sm:w-28" />
         <div className="min-w-0">
           <p className="text-sm font-medium opacity-80 sm:text-[15px]" suppressHydrationWarning>
-            {isClient ? greeting(new Date().getHours()) : "Hello"}, {name}
+            {isClient ? greeting(new Date().getHours(), name) : `Hello, ${name}`}
           </p>
           <h1 className="mt-0.5 text-xl leading-tight font-extrabold tracking-tight sm:text-3xl">Get it out of your head.</h1>
           <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
