@@ -185,6 +185,10 @@ Heavy use: 20 dumps a day, 5 of them photos, 3 voice notes.
 
 **A. Text dump**: type → **Dump it** → row saved in the database (a few milliseconds) → Inbox and widgets update instantly.
 
+**A2. The half-typed draft** (added in N1): the Dump box is saved to disk as you type, and only forgotten once the dump is committed. If saving fails, the text goes back in the box.
+
+> **🎓 SRE lesson: know which "saved" you mean.** Android offers *saved instance state*, which survives the system killing the app in the background, but is **thrown away** when you swipe the app away or force-stop it. Testing N1 on the emulator showed that gap, so the draft moved to real on-disk storage. Rule of thumb: if losing it would hurt, it goes to disk; screen state is only for things that are cheap to lose (scroll position, which tab is open).
+
 **B. Photo dump**
 1. Tap 📷 → **Take photo** (system camera) or **Choose** (Photo Picker).
 2. The app shrinks it to WebP on a background thread, writes it to a temporary file, then **renames** it to `photos/<id>.webp`.
@@ -226,7 +230,7 @@ Heavy use: 20 dumps a day, 5 of them photos, 3 voice notes.
 | Capture feels instant | Tap Dump → "Saved ✓" (text) | 99% < 300 ms | Timed in automated tests + on-device timer |
 | Photo capture | Photo chosen → "Saved ✓" | 95% < 2 s | Test with a 12-megapixel photo |
 | **Never lose a dump** | Dumps confirmed "Saved ✓" that later go missing | **0, ever** | Crash-during-save tests (§9) |
-| App opens fast | Cold start → Home visible | 95% < 1 s | Android's startup measurement on emulator |
+| App opens fast | Cold start → Home visible | 95% < 1 s | Android's startup measurement; **first real reading (v0.1.0, your phone): under 0.5 s ✅**. The emulator (no GPU) shows 1.4–2.5 s, so phone numbers are the ones that count |
 | Widgets are fresh | Data change → widget updated | 99% < 2 s | Test: dump, then read widget |
 | Doesn't crash | Crash-free sessions | ≥ 99.5% | Local crash log (§8) |
 | Backups exist | Age of newest backup | Auto-backup < 48 h; Settings nags if last export > 30 days | Shown in Settings |
