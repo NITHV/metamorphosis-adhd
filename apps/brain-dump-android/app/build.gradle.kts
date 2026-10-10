@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -9,7 +10,7 @@ plugins {
 // The release signing key lives outside the repo (see README). Locally it's read from
 // D:/Metamorphosis/keys; CI points BRAIN_DUMP_KEYSTORE_PROPERTIES at a file it decodes from secrets.
 val keystoreProps: Properties? = (System.getenv("BRAIN_DUMP_KEYSTORE_PROPERTIES") ?: "D:/Metamorphosis/keys/keystore.properties")
-    .let(::file)
+    .let(::File) // plain File: Gradle's file() treats "D:/..." as a URL on Linux CI
     .takeIf { it.exists() }
     ?.let { f -> Properties().apply { f.inputStream().use(::load) } }
 
@@ -29,7 +30,7 @@ android {
     signingConfigs {
         if (keystoreProps != null) {
             create("release") {
-                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storeFile = File(keystoreProps.getProperty("storeFile"))
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
                 keyPassword = keystoreProps.getProperty("keyPassword")
