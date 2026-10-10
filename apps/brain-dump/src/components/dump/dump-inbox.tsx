@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useEffect, useOptimistic, useRef, useState } from "react";
+import { startTransition, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import { ToastBar, useToast } from "@/components/toast";
 import {
   archiveCapture,
@@ -11,7 +11,9 @@ import {
   unsortCapture,
 } from "@/app/actions";
 import { FOCUS_DUMP_EVENT, OPEN_VOICE_EVENT } from "@/components/toolbar-actions";
-import { InboxIcon, MicIcon } from "@/components/icons";
+import { CameraIcon, InboxIcon, MicIcon } from "@/components/icons";
+import { PhotoSheet } from "@/components/photo/photo-sheet";
+import { PhotoThumb } from "@/components/photo/photo-thumb";
 import { PlayButton } from "@/components/voice/play-button";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
 import { RelativeTime, formatDue } from "@/components/time";
@@ -19,12 +21,13 @@ import { useIsClient } from "@/components/use-is-client";
 import type { InboxCapture } from "@/lib/captures";
 import { KIND_META, KINDS, type Kind } from "@/lib/kinds";
 import { MAX_CAPTURE_LENGTH } from "@/lib/limits";
-import { enqueueText, enqueueVoice } from "@/lib/outbox";
+import { enqueuePhoto, enqueueText, enqueueVoice, type OutboxItem } from "@/lib/outbox";
+import { takeShared } from "@/lib/shared";
 import { useOutbox } from "@/components/offline/use-outbox";
 import { findDate, guessKind, splitDump } from "@/lib/smart-guess";
 
-/** A dump still on its way to the server (saved in the device outbox). */
-type Row = InboxCapture & { waiting?: boolean };
+/** A dump still on its way to the server (saved in the device outbox), with a local photo preview. */
+type Row = InboxCapture & { waiting?: boolean; photoSrc?: string };
 
 type OptimisticAction =
   | { type: "add"; captures: InboxCapture[] }
@@ -48,6 +51,7 @@ export function DumpInbox({
   const [text, setText] = useState("");
   const { toast, showToast, hideToast } = useToast();
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Ctrl/⌘ + K (or the pencil in the toolbar) jumps to the capture box.
@@ -63,17 +67,42 @@ export function DumpInbox({
     window.addEventListener("keydown", onKey);
     window.addEventListener(FOCUS_DUMP_EVENT, focus);
     window.addEventListener(OPEN_VOICE_EVENT, openVoice);
-    // The toolbar mic on other pages links here with ?voice=1.
-    if (new URLSearchParams(window.location.search).get("voice") === "1") {
+    // Home-screen shortcuts and the toolbar on other pages link here with ?type=1, ?voice=1, ?photo=1.
+    // "Share to Brain Dump" lands here with ?shared=1 (or ?shared=failed).
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("voice") || params.has("photo") || params.has("type") || params.has("shared")) {
       window.history.replaceState(null, "", window.location.pathname);
-      openVoice();
     }
+    if (params.get("voice") === "1") openVoice();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL is only known in the browser
+    if (params.get("photo") === "1") setPhotoOpen(true);
+    if (params.get("type") === "1") focus();
+    if (params.get("shared") === "failed") {
+      showToast({ message: "Sharing didn't work this time. Open Brain Dump once, then share again.", durationMs: 6000 });
+    }
+    // Anything shared into the app (even while offline or signed out) becomes dumps now.
+    takeShared(userId).then(
+      ({ dumped, failed }) => {
+        if (dumped === 0 && failed === 0) return;
+        const parts = [dumped > 0 ? `Dumped ${dumped === 1 ? "it" : dumped} ✓` : "", failed > 0 ? `${failed} photo${failed === 1 ? "" : "s"} couldn't be read` : ""];
+        // Longer than usual: you've just switched over from another app.
+        showToast({ message: parts.filter(Boolean).join(" · "), durationMs: 4000 });
+      },
+      () => showToast({ message: "Couldn't pick up what you shared. Try sharing it again.", durationMs: 6000 }),
+    );
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(FOCUS_DUMP_EVENT, focus);
       window.removeEventListener(OPEN_VOICE_EVENT, openVoice);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on arrival
   }, []);
+
+  /** Stores the shrunk photo in the device outbox; it uploads now, or as soon as there's signal. */
+  async function savePhoto(caption: string, photo: Blob) {
+    await enqueuePhoto(userId, caption, photo);
+    showToast({ message: navigator.onLine ? "Photo dumped ✓" : "Saved on this device ✓ Uploads when you're back online." });
+  }
 
   /** Stores the recording in the device outbox; it uploads now, or as soon as there's signal. */
   async function saveVoice(transcript: string, audio: Blob) {
@@ -142,6 +171,7 @@ export function DumpInbox({
           rawText,
           suggestedKind: guessKind(rawText),
           hasAudio: false,
+          hasPhoto: false,
           createdAt: c.createdAt,
         })),
       });
@@ -156,13 +186,16 @@ export function DumpInbox({
 
   // Dumps still in the outbox show at the top until the server has them.
   const outbox = useOutbox();
+  const previews = useOutboxPreviews(outbox);
   const waiting: Row[] = outbox
     .filter((o) => o.userId === userId && !items.some((c) => c.id === o.id))
     .map((o) => ({
       id: `temp-outbox-${o.id}`,
-      rawText: o.text || "🎙️ Voice note",
+      rawText: o.text || (o.kind === "photo" ? "📷 Photo" : "🎙️ Voice note"),
       suggestedKind: null,
       hasAudio: false,
+      hasPhoto: false,
+      photoSrc: previews.get(o.id),
       createdAt: o.createdAt,
       waiting: true,
     }));
@@ -205,6 +238,16 @@ export function DumpInbox({
           <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setPhotoOpen(true)}
+            aria-label="Take or choose a photo to dump"
+            title="Photo dump"
+            className="chunky-sm press flex h-12 w-12 items-center justify-center rounded-xl bg-card sm:h-11 sm:w-11"
+            style={{ color: "var(--pill-blue)" }}
+          >
+            <CameraIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
             onClick={() => setVoiceOpen(true)}
             aria-label="Record a voice dump"
             title="Voice dump"
@@ -225,6 +268,7 @@ export function DumpInbox({
       </form>
 
       {voiceOpen && <VoiceRecorder onSave={saveVoice} onClose={() => setVoiceOpen(false)} />}
+      {photoOpen && <PhotoSheet onSave={savePhoto} onClose={() => setPhotoOpen(false)} />}
 
       <section className="mt-8" aria-labelledby="inbox-heading">
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -262,6 +306,7 @@ export function DumpInbox({
                 key={c.id}
                 capture={c}
                 waiting={c.waiting}
+                photoSrc={c.photoSrc}
                 onClear={() => clear(c)}
                 onSort={(k) => sort(c, k)}
                 onSplit={() => split(c)}
@@ -279,12 +324,14 @@ export function DumpInbox({
 function InboxRow({
   capture: c,
   waiting,
+  photoSrc,
   onClear,
   onSort,
   onSplit,
 }: {
   capture: InboxCapture;
   waiting?: boolean;
+  photoSrc?: string;
   onClear: () => void;
   onSort: (kind: Kind) => void;
   onSplit: () => void;
@@ -294,7 +341,9 @@ function InboxRow({
   const suggested = c.suggestedKind ?? guessKind(c.rawText);
   // Dates depend on the viewer's timezone, so they're only worked out in the browser.
   const due = isClient ? findDate(c.rawText) : null;
-  const canSplit = splitDump(c.rawText).length > 1;
+  // A photo can't be split (the server refuses too).
+  const canSplit = !c.hasPhoto && splitDump(c.rawText).length > 1;
+  const photo = photoSrc ?? (c.hasPhoto ? `/api/photo/${c.id}` : null);
 
   return (
     <li className={`px-3 py-3 sm:px-4 ${pending ? "opacity-60" : ""}`}>
@@ -316,6 +365,11 @@ function InboxRow({
         <p className="min-w-0 flex-1 whitespace-pre-wrap break-words pt-0.5 leading-snug">{c.rawText}</p>
         <RelativeTime iso={c.createdAt} />
       </div>
+      {photo && (
+        <div className="mt-2 pl-9 sm:pl-10">
+          <PhotoThumb src={photo} alt={c.rawText} />
+        </div>
+      )}
       {waiting && (
         <p className="mt-1.5 pl-9 text-xs font-semibold sm:pl-10" style={{ color: "var(--pill-orange)" }}>
           ⏳ Saved on this device, waiting to upload
@@ -369,6 +423,16 @@ function InboxRow({
       )}
     </li>
   );
+}
+
+/** Local previews for photos still waiting in the outbox (blob: URLs, released when no longer needed). */
+function useOutboxPreviews(outbox: OutboxItem[]): Map<string, string> {
+  const photos = outbox.filter((o) => o.kind === "photo" && o.photo);
+  const key = photos.map((o) => o.id).join(",");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by ids: the blobs never change for an id
+  const previews = useMemo(() => new Map(photos.map((o) => [o.id, URL.createObjectURL(o.photo!)])), [key]);
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
+  return previews;
 }
 
 function isTouch() {

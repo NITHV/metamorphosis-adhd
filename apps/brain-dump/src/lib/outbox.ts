@@ -6,25 +6,38 @@
 // the server reuses, so delivering twice can never create a duplicate.
 
 import { upload } from "@vercel/blob/client";
-import { createCapture, createVoiceCapture } from "@/app/actions";
+import { createCapture, createPhotoCapture, createVoiceCapture } from "@/app/actions";
+import { photoExtension } from "@/lib/photo";
 
 export type OutboxItem = {
   id: string;
   userId: string;
-  kind: "text" | "voice";
+  kind: "text" | "voice" | "photo";
+  /** The dump text, the voice transcript, or the photo caption (may be empty for photos). */
   text: string;
   audio?: Blob;
+  /** Already shrunk and stripped of hidden data (src/lib/photo.ts). */
+  photo?: Blob;
   createdAt: string;
   attempts: number;
 };
 
 const DB_NAME = "brain-dump";
 const STORE = "outbox";
+/** Things shared into Brain Dump from other apps, parked by the service worker (public/sw.js). */
+export const SHARED_STORE = "shared";
+// v2 added the "shared" store. public/sw.js opens the same database and must use the same version
+// and upgrade steps, or whichever opens it second will fail.
+const DB_VERSION = 2;
 
-function openDb(): Promise<IDBDatabase> {
+export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(SHARED_STORE)) db.createObjectStore(SHARED_STORE, { keyPath: "id" });
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -102,6 +115,21 @@ export async function enqueueVoice(userId: string, text: string, audio: Blob): P
   return item;
 }
 
+/** Adds a photo dump (shrunk photo + optional caption). */
+export async function enqueuePhoto(userId: string, caption: string, photo: Blob, createdAt = new Date()): Promise<OutboxItem> {
+  const item: OutboxItem = {
+    id: crypto.randomUUID(),
+    userId,
+    kind: "photo",
+    text: caption,
+    photo,
+    createdAt: createdAt.toISOString(),
+    attempts: 0,
+  };
+  await saveOrDeliver(item);
+  return item;
+}
+
 async function saveOrDeliver(item: OutboxItem) {
   try {
     await put(item);
@@ -117,6 +145,17 @@ async function deliver(item: OutboxItem) {
   const origin = { id: item.id, createdAt: item.createdAt };
   if (item.kind === "text") {
     await createCapture(item.text, origin);
+    return;
+  }
+  if (item.kind === "photo") {
+    const photo = item.photo!;
+    // Named by the dump id, so a retried upload replaces rather than duplicates.
+    const blob = await upload(`photo/${item.userId}/${item.id}.${photoExtension(photo)}`, photo, {
+      access: "private",
+      handleUploadUrl: "/api/photo/upload",
+      contentType: photo.type,
+    });
+    await createPhotoCapture(item.text, blob.url, origin);
     return;
   }
   const audio = item.audio!;

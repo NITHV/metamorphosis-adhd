@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         ← Brain Dump
       </Link>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted">Last updated: October 8, 2026 (added voice notes)</p>
+      <p className="mt-2 text-sm text-muted">Last updated: October 11, 2026 (added photos; no AI)</p>
 
       <div className="mt-8 flex flex-col gap-6 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5">
         <p>
@@ -73,11 +73,20 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2>Optional AI features</h2>
+          <h2>Photos</h2>
           <p>
-            An optional &ldquo;AI assist&rdquo; feature is off by default. If you turn it on, the text of
-            your notes (never notes marked private) is sent to a third-party AI service to suggest how to
-            sort them. You can turn it off at any time.
+            Before a photo leaves your phone, Brain Dump makes a smaller copy and drops everything hidden
+            inside the original file, including the location where it was taken. Only that smaller copy is
+            stored, privately, and only you can see it. Photos you share into Brain Dump from other apps are
+            handled the same way.
+          </p>
+        </section>
+
+        <section>
+          <h2>No AI</h2>
+          <p>
+            Brain Dump doesn&apos;t send your notes, voice recordings or photos to any AI service. Sorting
+            suggestions come from simple rules that run on your own device.
           </p>
         </section>
 

@@ -7,6 +7,7 @@ import { formatDue } from "@/components/time";
 import { ToastBar, useToast } from "@/components/toast";
 import { useIsClient } from "@/components/use-is-client";
 import { PlayButton } from "@/components/voice/play-button";
+import { PhotoThumb } from "@/components/photo/photo-thumb";
 import type { PileItem } from "@/lib/items";
 import { KIND_META, KINDS, type Kind } from "@/lib/kinds";
 
@@ -204,6 +205,11 @@ function Row({
           <p className={`whitespace-pre-wrap break-words leading-snug ${done ? "text-muted line-through" : ""}`}>
             {item.title}
           </p>
+          {item.photoCaptureId && (
+            <div className="mt-1.5">
+              <PhotoThumb src={`/api/photo/${item.photoCaptureId}`} alt={item.title} />
+            </div>
+          )}
           {item.audioCaptureId && (
             <div className="mt-1.5">
               <PlayButton audioId={item.audioCaptureId} />

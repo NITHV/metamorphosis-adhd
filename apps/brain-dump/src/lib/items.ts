@@ -15,6 +15,8 @@ export type PileItem = {
   createdAt: string;
   /** Set when the item came from a voice dump; audio is served by /api/audio/[captureId]. */
   audioCaptureId: string | null;
+  /** Set when the item came from a photo dump; the photo is served by /api/photo/[captureId]. */
+  photoCaptureId: string | null;
 };
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -23,7 +25,7 @@ const iso = (d: Date | null) => (d ? d.toISOString() : null);
 export async function getPileItems(userId: string, kind: Kind): Promise<PileItem[]> {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const rows = await db
-    .select({ item: items, audioUrl: captures.audioUrl })
+    .select({ item: items, audioUrl: captures.audioUrl, photoUrl: captures.photoUrl })
     .from(items)
     .leftJoin(captures, eq(captures.id, items.captureId))
     .where(
@@ -36,7 +38,7 @@ export async function getPileItems(userId: string, kind: Kind): Promise<PileItem
     )
     .orderBy(kind === "reminder" ? sql`${items.dueAt} asc nulls last` : desc(items.createdAt), asc(items.id))
     .limit(500);
-  return rows.map(({ item: r, audioUrl }) => ({
+  return rows.map(({ item: r, audioUrl, photoUrl }) => ({
     id: r.id,
     kind: r.kind,
     title: r.title,
@@ -44,6 +46,7 @@ export async function getPileItems(userId: string, kind: Kind): Promise<PileItem
     doneAt: iso(r.doneAt),
     createdAt: r.createdAt.toISOString(),
     audioCaptureId: audioUrl ? r.captureId : null,
+    photoCaptureId: photoUrl ? r.captureId : null,
   }));
 }
 

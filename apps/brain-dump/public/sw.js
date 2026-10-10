@@ -29,9 +29,14 @@ const isStaticAsset = (url) =>
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // "Share to Brain Dump" from another app (manifest share_target).
+  if (request.method === "POST" && url.pathname === "/share-target") {
+    event.respondWith(handleShare(request));
+    return;
+  }
+  if (request.method !== "GET") return;
   if (url.pathname.startsWith("/api/")) return;
   // React Server Component payloads: Next.js handles these (and retries them) itself.
   if (request.headers.has("RSC") || url.searchParams.has("_rsc")) return;
@@ -66,6 +71,51 @@ async function networkFirstPage(request) {
       (await cache.match(new URL("/", url).href)) ||
       new Response(OFFLINE_PAGE, { headers: { "Content-Type": "text/html; charset=utf-8" } })
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Share target: park what was shared on the device, then open the app, which turns it into dumps
+// (src/lib/shared.ts). Parking first means sharing works offline and needs no sign-in check here.
+// ---------------------------------------------------------------------------
+
+// Must match src/lib/outbox.ts (same database, version and upgrade steps).
+const DB_NAME = "brain-dump";
+const DB_VERSION = 2;
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("outbox")) db.createObjectStore("outbox", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("shared")) db.createObjectStore("shared", { keyPath: "id" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function handleShare(request) {
+  try {
+    const form = await request.formData();
+    const parts = ["title", "text", "url"].map((k) => String(form.get(k) || "").trim()).filter(Boolean);
+    // Apps often repeat the link inside the text; keep each piece once.
+    const text = [...new Set(parts)].join("\n");
+    const files = form.getAll("photos").filter((f) => f instanceof Blob && f.size > 0);
+    if (!text && files.length === 0) return Response.redirect("/", 303);
+
+    const db = await openDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("shared", "readwrite");
+      tx.objectStore("shared").put({ id: crypto.randomUUID(), text, files, createdAt: new Date().toISOString() });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return Response.redirect("/?shared=1", 303);
+  } catch {
+    return Response.redirect("/?shared=failed", 303);
   }
 }
 

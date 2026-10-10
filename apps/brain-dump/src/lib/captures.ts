@@ -10,6 +10,8 @@ export type InboxCapture = {
   rawText: string;
   suggestedKind: Kind | null;
   hasAudio: boolean;
+  /** Photo is served by /api/photo/[id]. */
+  hasPhoto: boolean;
   createdAt: string; // ISO, so it can cross into Client Components
 };
 
@@ -21,15 +23,17 @@ export async function getInboxCaptures(userId: string): Promise<InboxCapture[]> 
       rawText: captures.rawText,
       suggestedKind: captures.suggestedKind,
       audioUrl: captures.audioUrl,
+      photoUrl: captures.photoUrl,
       createdAt: captures.createdAt,
     })
     .from(captures)
     .where(and(eq(captures.userId, userId), eq(captures.status, "inbox")))
     .orderBy(desc(captures.createdAt))
     .limit(200);
-  return rows.map(({ audioUrl, ...r }) => ({
+  return rows.map(({ audioUrl, photoUrl, ...r }) => ({
     ...r,
     hasAudio: Boolean(audioUrl),
+    hasPhoto: Boolean(photoUrl),
     createdAt: r.createdAt.toISOString(),
   }));
 }

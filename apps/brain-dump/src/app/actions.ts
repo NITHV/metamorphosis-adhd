@@ -24,19 +24,21 @@ function parseDue(value: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Accepts only audio files in this user's own folder of our Blob store. */
-function checkAudioUrl(userId: string, audioUrl: string): string {
+/** Accepts only files in this user's own folder (voice/ or photo/) of our Blob store. */
+function checkBlobUrl(userId: string, blobUrl: string, folder: "voice" | "photo"): string {
   let url: URL;
   try {
-    url = new URL(audioUrl);
+    url = new URL(blobUrl);
   } catch {
-    throw new Error("Bad audio link");
+    throw new Error(`Bad ${folder} link`);
   }
-  if (!url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/voice/${userId}/`)) {
-    throw new Error("Bad audio link");
+  if (!url.hostname.endsWith(".blob.vercel-storage.com") || !url.pathname.startsWith(`/${folder}/${userId}/`)) {
+    throw new Error(`Bad ${folder} link`);
   }
   return url.toString();
 }
+
+const checkAudioUrl = (userId: string, audioUrl: string) => checkBlobUrl(userId, audioUrl, "voice");
 
 const clip = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
@@ -108,6 +110,28 @@ export async function createVoiceCapture(text: string, audioUrl: string, origin?
   return row;
 }
 
+/**
+ * Saves a photo dump: the photo (already shrunk and stripped of hidden data in the browser, then uploaded
+ * straight to the private Blob store) plus an optional caption. The caption alone drives the smart guess.
+ */
+export async function createPhotoCapture(caption: string, photoUrl: string, origin?: CaptureOrigin): Promise<{ id: string }> {
+  const userId = await requireUserId();
+  const url = checkBlobUrl(userId, photoUrl, "photo");
+  const text = (typeof caption === "string" ? caption.trim() : "").slice(0, MAX_CAPTURE_LENGTH);
+  const suggestedKind = text ? guessKind(text) : null;
+  const row = await insertCapture({
+    ...originValues(origin),
+    userId,
+    rawText: text || "📷 Photo",
+    source: "photo",
+    photoUrl: url,
+    suggestedKind,
+    suggestedBy: suggestedKind ? "rules" : null,
+  });
+  refresh();
+  return row;
+}
+
 async function setCaptureStatus(id: string, status: "inbox" | "archived") {
   const userId = await requireUserId();
   await db
@@ -165,10 +189,12 @@ export async function unsortCapture(captureId: string) {
 export async function splitCapture(captureId: string) {
   const userId = await requireUserId();
   const [capture] = await db
-    .select({ rawText: captures.rawText, createdAt: captures.createdAt })
+    .select({ rawText: captures.rawText, createdAt: captures.createdAt, photoUrl: captures.photoUrl })
     .from(captures)
     .where(and(eq(captures.id, captureId), eq(captures.userId, userId), eq(captures.status, "inbox")));
   if (!capture) throw new Error("That dump isn't in your inbox anymore");
+  // A photo can't be split, and splitting its caption would leave the photo behind.
+  if (capture.photoUrl) throw new Error("Photo dumps can't be split");
 
   const parts = splitDump(capture.rawText);
   if (parts.length < 2) throw new Error("Nothing to split");

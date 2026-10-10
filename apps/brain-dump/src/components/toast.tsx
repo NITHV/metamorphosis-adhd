@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-export type Toast = { message: string; undo?: () => void } | null;
+export type Toast = { message: string; undo?: () => void; /** Override how long it stays. */ durationMs?: number } | null;
 
 /** One toast at a time; ones with Undo stay a little longer. */
 export function useToast() {
@@ -11,7 +11,7 @@ export function useToast() {
   function showToast(next: Toast) {
     clearTimeout(timer.current);
     setToast(next);
-    timer.current = setTimeout(() => setToast(null), next?.undo ? 5000 : 1800);
+    timer.current = setTimeout(() => setToast(null), next?.durationMs ?? (next?.undo ? 5000 : 1800));
   }
   return { toast, showToast, hideToast: () => setToast(null) };
 }
