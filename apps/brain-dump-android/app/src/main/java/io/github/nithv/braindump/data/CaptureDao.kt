@@ -22,6 +22,15 @@ interface CaptureDao {
     @Query("UPDATE captures SET status = :status, updated_at = :now WHERE id = :id")
     suspend fun setStatus(id: String, status: CaptureStatus, now: Long): Int
 
+    @Query("SELECT audio_file FROM captures WHERE audio_file IS NOT NULL")
+    suspend fun audioFiles(): List<String>
+
+    @Query(
+        """UPDATE captures SET raw_text = :text, suggested_kind = :kind, updated_at = :now
+           WHERE id = :id AND raw_text = :placeholder""",
+    )
+    suspend fun replacePlaceholder(id: String, placeholder: String, text: String, kind: Kind?, now: Long): Int
+
     /** Every photo file a dump points at, whatever its status (archived dumps keep their photo). */
     @Query("SELECT photo_file FROM captures WHERE photo_file IS NOT NULL")
     suspend fun photoFiles(): List<String>

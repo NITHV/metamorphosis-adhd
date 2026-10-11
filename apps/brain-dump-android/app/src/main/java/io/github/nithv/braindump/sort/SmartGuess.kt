@@ -101,29 +101,47 @@ private fun dayOfWeek(name: String): DayOfWeek {
     return DayOfWeek.entries.first { it.name.lowercase().startsWith(d.take(3)) }
 }
 
-private fun findTime(text: String): LocalTime? {
-    TIME_AMPM.find(text)?.let { m ->
+/** A time of day found in the text, and where. */
+private class TimeHit(val range: IntRange, val time: LocalTime)
+
+private fun findTimes(text: String): List<TimeHit> {
+    val hits = mutableListOf<TimeHit>()
+    TIME_AMPM.findAll(text).forEach { m ->
         val hour = m.groupValues[1].toInt()
         val minute = m.groupValues[2].ifEmpty { "0" }.toInt()
         if (hour in 1..12 && minute in 0..59) {
             val pm = m.groupValues[3].equals("p", ignoreCase = true)
-            return LocalTime.of(hour % 12 + if (pm) 12 else 0, minute)
+            hits += TimeHit(m.range, LocalTime.of(hour % 12 + if (pm) 12 else 0, minute))
         }
     }
-    TIME_24H.find(text)?.let { m ->
+    TIME_24H.findAll(text).forEach { m ->
         val hour = m.groupValues[1].toInt()
         val minute = m.groupValues[2].toInt()
-        if (hour in 0..23 && minute in 0..59) return LocalTime.of(hour, minute)
+        if (hour in 0..23 && minute in 0..59) hits += TimeHit(m.range, LocalTime.of(hour, minute))
     }
-    TIME_WORD.find(text)?.let { m ->
-        return if (m.groupValues[1].equals("noon", ignoreCase = true)) LocalTime.NOON else LocalTime.MIDNIGHT
+    TIME_WORD.findAll(text).forEach { m ->
+        hits += TimeHit(m.range, if (m.groupValues[1].equals("noon", ignoreCase = true)) LocalTime.NOON else LocalTime.MIDNIGHT)
     }
-    TIME_AT_HOUR.find(text)?.let { m ->
+    TIME_AT_HOUR.findAll(text).forEach { m ->
         val hour = m.groupValues[1].toInt()
-        if (hour in 0..23) return LocalTime.of(hour, 0)
+        if (hour in 0..23) hits += TimeHit(m.range, LocalTime.of(hour, 0))
     }
-    return null
+    // Overlapping finds ("3:15pm" is also "3:15") keep the earliest, longest one.
+    return hits.sortedWith(compareBy<TimeHit> { it.range.first }.thenByDescending { it.range.last })
+        .fold(mutableListOf()) { kept, h -> if (kept.none { it.range.last >= h.range.first }) kept += h; kept }
 }
+
+/** A time belongs to a date only when they're side by side: "friday at 5", "6pm on friday", "tomorrow, 5pm". */
+private val JOINER = Regex("""(?i)^[\s,.]*(?:at|on|by|@)?[\s,.]*$""")
+
+private fun adjacentTime(text: String, date: IntRange, times: List<TimeHit>): LocalTime? = times.firstOrNull { t ->
+    val gap = when {
+        t.range.first > date.last -> text.substring(date.last + 1, t.range.first)
+        t.range.last < date.first -> text.substring(t.range.last + 1, date.first)
+        else -> return@firstOrNull false
+    }
+    JOINER.matches(gap)
+}?.time
 
 /** A calendar date ("Oct 12"), moved to next year if it has already passed this year. */
 private fun calendarDate(month: Int, day: Int, year: String, today: LocalDate): LocalDate? {
@@ -133,70 +151,82 @@ private fun calendarDate(month: Int, day: Int, year: String, today: LocalDate): 
     return if (year.isEmpty() && date.isBefore(today)) date.plusYears(1) else date
 }
 
+/** One date phrase in the text: where it is, and how to turn it (plus a time beside it) into a moment. */
+private class DateHit(val range: IntRange, val resolve: (time: LocalTime?) -> LocalDateTime?)
+
 /**
  * Finds a date/time in [text], relative to [now] (the phone's local time). Returns null when there
- * isn't one. Like the website, "today"/"tonight" on their own are chatter, not deadlines.
+ * isn't one. Like the website's chrono-node: the EARLIEST date phrase wins, a time only counts if
+ * it sits right beside it, and "today"/"tonight" on their own are chatter, so they're skipped.
  */
 fun findDate(text: String, now: LocalDateTime = LocalDateTime.now()): LocalDateTime? {
     val today = now.toLocalDate()
+    val times = findTimes(text)
+    val hits = mutableListOf<DateHit>()
 
-    IN_SPAN.find(text)?.let { m ->
+    IN_SPAN.findAll(text).forEach { m ->
         val n = m.groupValues[1].let { if (it.equals("a", true) || it.equals("an", true)) 1L else it.toLong() }
         val unit = m.groupValues[2].lowercase()
-        return when {
-            unit.startsWith("min") -> now.plusMinutes(n).withSecond(0).withNano(0)
-            unit.startsWith("h") -> now.plusHours(n).withSecond(0).withNano(0)
-            unit.startsWith("d") -> today.plusDays(n).atTime(DEFAULT_TIME)
-            unit.startsWith("w") -> today.plusWeeks(n).atTime(DEFAULT_TIME)
-            unit.startsWith("mo") -> today.plusMonths(n).atTime(DEFAULT_TIME)
-            else -> today.plusYears(n).atTime(DEFAULT_TIME)
+        hits += DateHit(m.range) {
+            when {
+                unit.startsWith("min") -> now.plusMinutes(n).withSecond(0).withNano(0)
+                unit.startsWith("h") -> now.plusHours(n).withSecond(0).withNano(0)
+                unit.startsWith("d") -> today.plusDays(n).atTime(DEFAULT_TIME)
+                unit.startsWith("w") -> today.plusWeeks(n).atTime(DEFAULT_TIME)
+                unit.startsWith("mo") -> today.plusMonths(n).atTime(DEFAULT_TIME)
+                else -> today.plusYears(n).atTime(DEFAULT_TIME)
+            }
         }
     }
 
-    val time = findTime(text)
-
-    NEXT_SPAN.find(text)?.let { m ->
+    NEXT_SPAN.findAll(text).forEach { m ->
         val date = when (m.groupValues[1].lowercase()) {
             "week" -> today.plusWeeks(1)
             "month" -> today.plusMonths(1)
             else -> today.plusYears(1)
         }
-        return date.atTime(time ?: DEFAULT_TIME)
+        hits += DateHit(m.range) { time -> date.atTime(time ?: DEFAULT_TIME) }
     }
 
-    // An explicit calendar date wins over a weekday or "tomorrow".
-    val calendar = MONTH_DAY.find(text)?.let { m ->
-        calendarDate(monthNumber(m.groupValues[1]), m.groupValues[2].toInt(), m.groupValues[3], today)
-    } ?: DAY_MONTH.find(text)?.let { m ->
-        calendarDate(monthNumber(m.groupValues[2]), m.groupValues[1].toInt(), m.groupValues[3], today)
+    MONTH_DAY.findAll(text).forEach { m ->
+        val date = calendarDate(monthNumber(m.groupValues[1]), m.groupValues[2].toInt(), m.groupValues[3], today)
+        if (date != null) hits += DateHit(m.range) { time -> date.atTime(time ?: DEFAULT_TIME) }
     }
-    if (calendar != null) return calendar.atTime(time ?: DEFAULT_TIME)
+    DAY_MONTH.findAll(text).forEach { m ->
+        val date = calendarDate(monthNumber(m.groupValues[2]), m.groupValues[1].toInt(), m.groupValues[3], today)
+        if (date != null) hits += DateHit(m.range) { time -> date.atTime(time ?: DEFAULT_TIME) }
+    }
 
-    DAY_WORD.find(text)?.let { m ->
-        when (m.groupValues[1].lowercase()) {
-            "tomorrow" -> return today.plusDays(1).atTime(time ?: DEFAULT_TIME)
-            "today" -> if (time != null) return today.atTime(time)
-            // "tonight at 9" means 9 pm.
-            else -> if (time != null) return today.atTime(if (time.hour < 12) time.plusHours(12) else time)
+    DAY_WORD.findAll(text).forEach { m ->
+        hits += DateHit(m.range) { time ->
+            when (m.groupValues[1].lowercase()) {
+                "tomorrow" -> today.plusDays(1).atTime(time ?: DEFAULT_TIME)
+                "today" -> time?.let { today.atTime(it) } // a bare "today" isn't a deadline
+                else -> time?.let { today.atTime(if (it.hour < 12) it.plusHours(12) else it) } // "tonight at 9" = 9 pm
+            }
         }
-        if (time == null) return null // a vague "today"/"tonight" isn't a date
     }
 
-    WEEKDAY.findAll(text).firstOrNull { m ->
-        val isShort = m.groupValues[2].length <= 5 && !m.groupValues[2].endsWith("day", ignoreCase = true)
-        !isShort || m.groupValues[1].isNotEmpty() || time != null
-    }?.let { m ->
-        val target = dayOfWeek(m.groupValues[2])
-        var date = today.with(TemporalAdjusters.nextOrSame(target))
-        // The same weekday as today means today only if a later time was given ("saturday 8pm").
-        if (date == today && (time == null || !time.isAfter(now.toLocalTime()))) date = date.plusWeeks(1)
-        return date.atTime(time ?: DEFAULT_TIME)
+    WEEKDAY.findAll(text).forEach { m ->
+        val name = m.groupValues[2]
+        val isShort = !name.endsWith("day", ignoreCase = true)
+        val target = dayOfWeek(name)
+        hits += DateHit(m.range) { time ->
+            // Short forms ("sat", "sun", "wed") are also ordinary words: they need "on…" or a time.
+            if (isShort && m.groupValues[1].isEmpty() && time == null) return@DateHit null
+            var date = today.with(TemporalAdjusters.nextOrSame(target))
+            // The same weekday as today means today only if a later time was given ("saturday 8pm").
+            if (date == today && (time == null || !time.isAfter(now.toLocalTime()))) date = date.plusWeeks(1)
+            date.atTime(time ?: DEFAULT_TIME)
+        }
+    }
+
+    for (hit in hits.sortedBy { it.range.first }) {
+        hit.resolve(adjacentTime(text, hit.range, times))?.let { return it }
     }
 
     // Just a time: the next time the clock shows it.
-    if (time != null) {
-        val candidate = today.atTime(time)
-        return if (candidate.isAfter(now)) candidate else candidate.plusDays(1)
-    }
-    return null
+    val time = times.firstOrNull()?.time ?: return null
+    val candidate = today.atTime(time)
+    return if (candidate.isAfter(now)) candidate else candidate.plusDays(1)
 }

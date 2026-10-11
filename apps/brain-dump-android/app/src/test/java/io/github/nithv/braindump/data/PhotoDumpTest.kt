@@ -25,9 +25,9 @@ class PhotoDumpTest {
     @get:Rule val tmp = TemporaryFolder()
 
     private lateinit var db: BrainDumpDatabase
-    private lateinit var store: PhotoStore
+    private lateinit var store: FileStore
     private lateinit var repo: BrainDumpRepository
-    private var now = 10 * PhotoStore.GRACE_MS
+    private var now = 10 * FileStore.GRACE_MS
     private var nextId = 0
 
     @Before
@@ -35,7 +35,7 @@ class PhotoDumpTest {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), BrainDumpDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        store = PhotoStore(tmp.newFolder("photos"), clock = { now })
+        store = FileStore(tmp.newFolder("photos"), clock = { now })
         repo = BrainDumpRepository(db, clock = { now }, newId = { "id-${nextId++}" }, photos = store)
     }
 
@@ -109,12 +109,12 @@ class PhotoDumpTest {
         repo.dumpPhoto("kept", "") // referenced by a dump: must stay, however old
         File(store.dir, "orphan.webp").writeBytes(byteArrayOf(1)) // a crash between rename and row
         pendingPhoto("abandoned") // reviewed, never saved
-        store.dir.listFiles()!!.forEach { it.setLastModified(now - 2 * PhotoStore.GRACE_MS) }
+        store.dir.listFiles()!!.forEach { it.setLastModified(now - 2 * FileStore.GRACE_MS) }
         File(store.dir, "just-renamed.webp").apply { writeBytes(byteArrayOf(1)); setLastModified(now - 1000) } // a save in progress
 
-        assertEquals(2, repo.cleanUpPhotos())
+        assertEquals(2, repo.cleanUpFiles())
         assertEquals(listOf("just-renamed.webp", "kept.webp"), names())
-        assertEquals(0, repo.cleanUpPhotos()) // running it again changes nothing (idempotent)
+        assertEquals(0, repo.cleanUpFiles()) // running it again changes nothing (idempotent)
     }
 
     @Test
@@ -123,7 +123,7 @@ class PhotoDumpTest {
         repo.dumpPhoto("p1", "")
         repo.clear("p1")
         store.dir.listFiles()!!.forEach { it.setLastModified(0) }
-        assertEquals(0, repo.cleanUpPhotos()) // Undo must still find the photo
+        assertEquals(0, repo.cleanUpFiles()) // Undo must still find the photo
         assertTrue(File(store.dir, "p1.webp").exists())
     }
 

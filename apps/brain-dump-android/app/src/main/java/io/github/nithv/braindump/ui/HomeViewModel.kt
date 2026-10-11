@@ -19,7 +19,10 @@ import io.github.nithv.braindump.sort.guessKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -39,6 +42,10 @@ data class InboxRow(
     val canSplit: Boolean,
     /** The photo of a photo dump. */
     val photo: File?,
+    /** The recording of a voice dump. */
+    val audio: File? = null,
+    /** A voice note whose words are still being worked out. */
+    val transcribing: Boolean = false,
 )
 
 /** What the Home screen shows. `null` inbox means "still loading" (so we don't flash "empty"). */
@@ -57,6 +64,8 @@ sealed interface HomeEvent {
 class HomeViewModel(
     private val repository: BrainDumpRepository,
     private val drafts: DraftStore,
+    /** Voice notes still being transcribed (ids). */
+    pendingTranscripts: Flow<Set<String>> = flowOf(emptySet()),
 ) : ViewModel() {
 
     /** What is in the Dump box right now. Restored from disk, so it survives the app being closed. */
@@ -69,7 +78,8 @@ class HomeViewModel(
     }
 
     val state: StateFlow<HomeUiState> = repository.inbox
-        .map { rows ->
+        .combine(pendingTranscripts) { rows, pending -> rows to pending }
+        .map { (rows, pending) ->
             val now = repository.localNow()
             HomeUiState(
                 rows.map { c ->
@@ -81,6 +91,8 @@ class HomeViewModel(
                         due = findDate(c.rawText, now),
                         canSplit = repository.canSplit(c),
                         photo = c.photoFile?.let(repository::photoFile),
+                        audio = c.audioFile?.let(repository::voiceFile),
+                        transcribing = c.id in pending,
                     )
                 },
             )
@@ -162,7 +174,7 @@ class HomeViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as BrainDumpApp
-                HomeViewModel(app.repository, app.drafts)
+                HomeViewModel(app.repository, app.drafts, app.transcriptions.pending)
             }
         }
     }

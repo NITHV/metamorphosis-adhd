@@ -79,7 +79,13 @@
     { "text": "I have 2 apples", "due": null },
     { "text": "call 911", "due": null },
     { "text": "buy 3 eggs", "due": null },
-    { "text": "on the 15th", "due": null }
+    { "text": "on the 15th", "due": null },
+    { "text": "Remember to buy milk tomorrow Also call the dentist on Friday at 5", "due": "2026-10-11T09:00" },
+    { "text": "call mom on friday, buy milk tomorrow at 5pm", "due": "2026-10-16T09:00" },
+    { "text": "dentist oct 20 or maybe friday", "due": "2026-10-20T09:00" },
+    { "text": "on friday. at 5pm gym", "due": "2026-10-16T17:00" },
+    { "text": "tomorrow, and at 7pm the gym", "due": "2026-10-11T09:00" },
+    { "text": "do it today or friday", "due": "2026-10-16T09:00" }
   ],
   "kinds": [
     { "text": "worried about the exam", "kind": "worry" },

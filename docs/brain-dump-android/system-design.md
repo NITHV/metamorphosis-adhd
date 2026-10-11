@@ -291,6 +291,24 @@ Android's built-in speech recognizer usually listens to the microphone itself, w
 
 > **🎓 Design lesson: spike the riskiest unknown first.** Don't design a whole feature around an API you haven't tried. A one-hour experiment beats a week of rework.
 
+### Voice transcription: what the N4 spike found
+A time-boxed experiment on the emulator (Android 15), feeding a recorded test sentence to Android's **on-device** recognizer:
+
+1. **It works, fully offline.** "Remember to buy milk tomorrow. Also call the dentist on Friday at 5" came back word for word, from an AAC `.m4a` file like the ones our recorder makes. The recognizer runs in Google's *on-device* speech service. We call `createOnDeviceSpeechRecognizer`, never the default one, which may send audio to a server.
+2. **Two recognizer sessions at once break each other** (error 11, "server disconnected"). So the app transcribes **one note at a time**.
+3. **Long notes come back in pieces** (roughly one per sentence). We ask for a *segmented session* and stitch the pieces together.
+4. **Feeding audio much faster than real time silently drops sentences.** The second sentence vanished at full speed. 4× worked, so we use **2×** for headroom on slower phones. A 10-second note takes about 5 seconds.
+5. **It needs Android 13+ and an installed offline language pack.** If your language isn't installed, the app uses another installed variant of the same language (en-IN → en-US). Otherwise the note stays a playable recording titled "🎙️ Voice note".
+
+> **🎓 SRE lesson: spikes pay for themselves.** Three of those five findings (sessions clashing, the pieces, the speed limit) aren't in Android's documentation. Each would have been a confusing "sometimes the words are missing" bug report after release. An hour of experiment turned them into design decisions.
+
+> **🎓 SRE lesson: a durable work queue (N4).** A voice note is **saved first** (9 ms) and transcribed afterwards. The note's ID is written to disk before transcription starts and removed only when it ends. If the app is closed halfway, the next start finds the ID and finishes the job: *at-least-once* processing, like a server's job queue. Failures are retried, but at most 3 times, so one bad recording can't retry forever. The finished words only replace the "🎙️ Voice note" placeholder (*compare-and-set*), so they never overwrite a title you typed yourself. Tested on the emulator by restarting the app mid-queue: the words appeared after the restart.
+
+> **🎓 Design lesson: graceful degradation.** Each piece can fail on its own without taking the others down. No offline speech pack: you still get a playable recording. Mic permission refused: the sheet explains and offers a shortcut to Settings, with no nagging. App sent to the background mid-note: Android cuts the mic for background apps, so the app saves what it has instead of recording silence.
+
+> **🎓 Testing lesson: real data finds real bugs.** The first real transcript ("…milk tomorrow … Friday at 5") showed the phone's date finder gluing "tomorrow" to "at 5" across two sentences and getting 5 AM. The website (chrono) doesn't do that. Six new two-date sentences went into the shared test file, both apps now pass all 95 cases, and the drift can't come back unnoticed.
+
+
 ---
 
 ## 9. Testing, releases and rollback
@@ -364,7 +382,7 @@ Each one ends with a **signed APK on your phone** and a short "what we learned" 
 | **N1** ✅ | **Text dumps + Inbox**: Room database v1, repository, Dump box, Inbox, clear/undo | Dump text and see it in the Inbox | Data layer, unidirectional flow, first SLO timer |
 | **N2** ✅ | **Sorting + piles**: chips, smart guess, date finder, split, piles, done/move/date/archive | Sort into piles | Transactions, shared test cases with the web |
 | **N3** ✅ | **Photo dumps**: camera, picker, shrink, thumbnails, full-screen view | Dump photos | Write order, atomic rename, reconciliation job |
-| **N4** | **Voice dumps**: spike, then recorder + playback + transcription | Dump by voice | Spikes, permissions, graceful degradation |
+| **N4** ✅ | **Voice dumps**: spike, then recorder + playback + transcription | Dump by voice | Spikes, permissions, graceful degradation |
 | **N5** | **Pause / Resume** | Save and resume your place | First real schema migration (v1→v2) + migration tests |
 | **N6** | **Widgets, shortcuts, Share to Brain Dump** | Use all three widgets and the share sheet | Event-driven updates, multiple entry points |
 | **N7** | **Backup, export/import, diagnostics** | Export, wipe, import, all back | RPO/RTO, restore drills, on-device observability |

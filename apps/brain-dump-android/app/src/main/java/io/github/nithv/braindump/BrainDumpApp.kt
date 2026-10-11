@@ -5,7 +5,9 @@ import android.util.Log
 import io.github.nithv.braindump.data.BrainDumpDatabase
 import io.github.nithv.braindump.data.BrainDumpRepository
 import io.github.nithv.braindump.data.DraftStore
-import io.github.nithv.braindump.data.PhotoStore
+import io.github.nithv.braindump.data.FileStore
+import io.github.nithv.braindump.voice.Transcriber
+import io.github.nithv.braindump.voice.Transcriptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,18 +23,28 @@ class BrainDumpApp : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val repository: BrainDumpRepository by lazy {
-        BrainDumpRepository(BrainDumpDatabase.open(this), photos = PhotoStore(File(filesDir, "photos")))
+        BrainDumpRepository(
+            BrainDumpDatabase.open(this),
+            photos = FileStore(File(filesDir, "photos"), ".webp"),
+            voice = FileStore(File(filesDir, "audio"), ".m4a"),
+        )
     }
 
     val drafts: DraftStore by lazy { DraftStore(this) }
 
+    val transcriptions: Transcriptions by lazy {
+        Transcriptions(repository, Transcriptions.prefs(this), appScope) { file -> Transcriber.transcribe(this, file) }
+    }
+
     override fun onCreate() {
         super.onCreate()
-        // The reconciliation job. Off the main thread, so it never slows the app opening.
+        // Background housekeeping, off the main thread so it never slows the app opening:
+        // the reconciliation job, then any voice notes an earlier run didn't finish transcribing.
         appScope.launch(Dispatchers.IO) {
-            runCatching { repository.cleanUpPhotos() }
-                .onSuccess { if (it > 0) Log.i("BrainDump", "Cleaned up $it orphan photo file(s)") }
-                .onFailure { Log.w("BrainDump", "Photo clean-up failed; will retry next start", it) }
+            runCatching { repository.cleanUpFiles() }
+                .onSuccess { if (it > 0) Log.i("BrainDump", "Cleaned up $it orphan file(s)") }
+                .onFailure { Log.w("BrainDump", "File clean-up failed; will retry next start", it) }
+            transcriptions.resume()
         }
     }
 }

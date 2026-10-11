@@ -18,6 +18,9 @@ const val MAX_CAPTURE_LENGTH = 5000
 /** What a photo dump without a caption says (same as the website). */
 const val PHOTO_PLACEHOLDER = "📷 Photo"
 
+/** What a voice dump says until (unless) its words are transcribed (same as the website). */
+const val VOICE_PLACEHOLDER = "🎙️ Voice note"
+
 private const val DAY_MS = 24 * 60 * 60 * 1000L
 
 sealed interface DumpResult {
@@ -40,7 +43,9 @@ class BrainDumpRepository(
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val zone: () -> ZoneId = ZoneId::systemDefault,
     /** Where photo files live. Null in tests that never touch photos. */
-    val photos: PhotoStore? = null,
+    val photos: FileStore? = null,
+    /** Where voice notes live. Null in tests that never touch voice. */
+    val voice: FileStore? = null,
 ) {
     private val captures = db.captures()
     private val items = db.items()
@@ -85,11 +90,11 @@ class BrainDumpRepository(
         }
     }
 
-    /** A fresh id for a photo that's about to be shrunk into [PhotoStore.pendingFile]. */
+    /** A fresh id for a photo that's about to be shrunk into [FileStore.pendingFile]. */
     fun newPhotoId(): String = newId()
 
     /**
-     * Saves a photo dump whose shrunk file is waiting in [PhotoStore.pendingFile]. Write order
+     * Saves a photo dump whose shrunk file is waiting in [FileStore.pendingFile]. Write order
      * (design doc §5 B): first the file is committed (atomic rename), THEN the row is written. If the
      * row fails, the rename is undone so tapping "Dump it" again still works.
      */
@@ -121,16 +126,70 @@ class BrainDumpRepository(
         }
     }
 
+    /** A fresh id for a voice note about to be recorded into [FileStore.pendingFile]. */
+    fun newVoiceId(): String = newId()
+
+    /**
+     * Saves a recorded voice note waiting in [FileStore.pendingFile], straight away and before any
+     * transcription: the recording is the dump, the words are a bonus. Same write order as photos.
+     */
+    suspend fun dumpVoice(id: String): String {
+        val store = checkNotNull(voice) { "No voice store" }
+        return SloTimer.measure("save_voice", SloTimer.SAVE_PHOTO_TARGET_MS) {
+            val fileName = store.commit(id)
+            val now = clock()
+            try {
+                captures.insert(
+                    CaptureEntity(
+                        id = id,
+                        rawText = VOICE_PLACEHOLDER,
+                        source = CaptureSource.VOICE,
+                        audioFile = fileName,
+                        status = CaptureStatus.INBOX,
+                        createdAt = now,
+                        updatedAt = now,
+                    ),
+                )
+            } catch (e: Exception) {
+                runCatching { store.uncommit(id) }
+                throw e
+            }
+            id
+        }
+    }
+
+    /**
+     * Fills in a voice note's words once transcription finishes. Compare-and-set: it only replaces
+     * the placeholder, so if you already renamed or filed the note your words win. Returns whether
+     * anything changed.
+     */
+    suspend fun setTranscript(id: String, text: String): Boolean {
+        val words = text.trim().take(MAX_CAPTURE_LENGTH)
+        if (words.isEmpty()) return false
+        return db.withTransaction {
+            val now = clock()
+            val changed = captures.replacePlaceholder(id, VOICE_PLACEHOLDER, words, guessKind(words, localNow()), now)
+            // Already filed into a pile while it was transcribing? Give the item the words too.
+            items.replacePlaceholderTitle(id, VOICE_PLACEHOLDER, words, now)
+            changed > 0
+        }
+    }
+
+    suspend fun getCapture(id: String): CaptureEntity? = captures.get(id)
+
+    fun voiceFile(name: String): File? = voice?.file(name)
+
     /** The file behind a photo dump, for showing it. */
     fun photoFile(name: String): File? = photos?.file(name)
 
     /**
-     * The reconciliation job (run at app start): deletes photo files that no dump points at and
-     * pending photos nobody finished. Returns how many files it removed.
+     * The reconciliation job (run at app start): deletes photo and voice files that no dump points
+     * at, and pending ones nobody finished. Returns how many files it removed.
      */
-    suspend fun cleanUpPhotos(): Int {
-        val store = photos ?: return 0
-        return store.reconcile(captures.photoFiles().toSet())
+    suspend fun cleanUpFiles(): Int {
+        val photoCount = photos?.reconcile(captures.photoFiles().toSet()) ?: 0
+        val voiceCount = voice?.reconcile(captures.audioFiles().toSet()) ?: 0
+        return photoCount + voiceCount
     }
 
     /** "Clear from inbox": archived, not deleted, so Undo can bring it back. */

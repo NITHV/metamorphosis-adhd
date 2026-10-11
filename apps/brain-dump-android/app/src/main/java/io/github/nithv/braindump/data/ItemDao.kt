@@ -10,10 +10,11 @@ import kotlinx.coroutines.flow.Flow
 
 data class KindCount(val kind: Kind, val n: Int)
 
-/** A pile item plus the photo of the dump it came from, if any. */
+/** A pile item plus the photo or recording of the dump it came from, if any. */
 data class PileItem(
     @Embedded val item: ItemEntity,
     @ColumnInfo(name = "photo_file") val photoFile: String?,
+    @ColumnInfo(name = "audio_file") val audioFile: String? = null,
 )
 
 @Dao
@@ -23,7 +24,7 @@ interface ItemDao {
 
     /** One pile: everything not archived, except things finished before [doneSince]. */
     @Query(
-        """SELECT items.*, captures.photo_file AS photo_file FROM items
+        """SELECT items.*, captures.photo_file AS photo_file, captures.audio_file AS audio_file FROM items
            LEFT JOIN captures ON captures.id = items.capture_id
            WHERE items.kind = :kind AND items.archived_at IS NULL
            AND (items.done_at IS NULL OR items.done_at >= :doneSince)
@@ -49,6 +50,9 @@ interface ItemDao {
 
     @Query("UPDATE items SET due_at = :dueAt, updated_at = :now WHERE id = :id")
     suspend fun setDue(id: String, dueAt: Long?, now: Long): Int
+
+    @Query("UPDATE items SET title = :title, updated_at = :now WHERE capture_id = :captureId AND title = :placeholder")
+    suspend fun replacePlaceholderTitle(captureId: String, placeholder: String, title: String, now: Long): Int
 
     @Query("DELETE FROM items WHERE capture_id = :captureId")
     suspend fun deleteForCapture(captureId: String): Int

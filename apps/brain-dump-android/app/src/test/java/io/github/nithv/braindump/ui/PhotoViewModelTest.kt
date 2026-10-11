@@ -6,7 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.nithv.braindump.data.BrainDumpDatabase
 import io.github.nithv.braindump.data.BrainDumpRepository
 import io.github.nithv.braindump.data.CaptureSource
-import io.github.nithv.braindump.data.PhotoStore
+import io.github.nithv.braindump.data.FileStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -46,7 +46,7 @@ class PhotoViewModelTest {
             .allowMainThreadQueries()
             .build()
         photosDir = tmp.newFolder("photos")
-        repo = BrainDumpRepository(db, photos = PhotoStore(photosDir))
+        repo = BrainDumpRepository(db, photos = FileStore(photosDir))
     }
 
     @After

@@ -72,6 +72,7 @@ fun HomeScreen(
     padding: PaddingValues,
     vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
     photoVm: PhotoViewModel = viewModel(factory = PhotoViewModel.Factory),
+    voiceVm: VoiceViewModel = viewModel(factory = VoiceViewModel.Factory),
 ) {
     val c = BrainDumpTheme.colors
     val state by vm.state.collectAsStateWithLifecycle()
@@ -112,6 +113,18 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(voiceVm) {
+        voiceVm.events.collect { event ->
+            scope.launch {
+                snackbar.currentSnackbarData?.dismiss()
+                when (event) {
+                    is VoiceEvent.Saved -> snackbar.showSnackbar(if (event.transcribing) "Saved ✓ Turning it into words…" else "Saved ✓")
+                    VoiceEvent.SaveFailed -> snackbar.showSnackbar("Couldn't save the recording. Try again.")
+                }
+            }
+        }
+    }
+
     // Re-render relative times ("5m") and dates ("Tomorrow") every half minute.
     val nowMs by produceState(System.currentTimeMillis()) {
         while (true) {
@@ -141,6 +154,7 @@ fun HomeScreen(
                 onTextChange = { vm.updateDraft(it.take(MAX_CAPTURE_LENGTH)) },
                 onDump = vm::dump,
                 onPhoto = photoVm::start,
+                onVoice = voiceVm::open,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
@@ -173,6 +187,7 @@ fun HomeScreen(
         }
     }
     PhotoSheet(photoVm)
+    VoiceSheet(voiceVm)
 }
 
 @Composable
@@ -224,6 +239,7 @@ private fun DumpBox(
     onTextChange: (String) -> Unit,
     onDump: () -> Unit,
     onPhoto: () -> Unit,
+    onVoice: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = BrainDumpTheme.colors
@@ -253,16 +269,9 @@ private fun DumpBox(
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(48.dp)
-                    .chunky(fill = c.card, ink = c.ink, radius = 14.dp, shadow = 3.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable(role = Role.Button, onClick = onPhoto)
-                    .semantics { contentDescription = "Take or choose a photo to dump" },
-            ) {
-                Text("📷", fontSize = 20.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ToolButton("🎙️", "Record a voice dump", onVoice)
+                ToolButton("📷", "Take or choose a photo to dump", onPhoto)
             }
             Box(
                 contentAlignment = Alignment.Center,
@@ -358,6 +367,15 @@ private fun InboxRowCard(
         if (row.photo != null) {
             PhotoThumb(row.photo, row.text, Modifier.padding(start = 48.dp, top = 8.dp))
         }
+        if (row.audio != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 48.dp, top = 8.dp)) {
+                PlayButton(row.audio)
+                if (row.transcribing) {
+                    Spacer(Modifier.width(10.dp))
+                    Text("✍️ Turning speech into words…", color = c.muted, fontSize = 12.sp)
+                }
+            }
+        }
         Column(Modifier.padding(start = 48.dp, top = 8.dp)) {
             if (row.due != null) {
                 Text(
@@ -448,5 +466,22 @@ private fun EmptyInbox() {
             .padding(vertical = 36.dp, horizontal = 16.dp),
     ) {
         Text("Inbox empty. Your head is clear 🌤️", color = c.muted, fontSize = 15.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/** A square tool button beside "Dump it" (voice, photo). */
+@Composable
+private fun ToolButton(icon: String, label: String, onClick: () -> Unit) {
+    val c = BrainDumpTheme.colors
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(48.dp)
+            .chunky(fill = c.card, ink = c.ink, radius = 14.dp, shadow = 3.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+    ) {
+        Text(icon, fontSize = 20.sp)
     }
 }

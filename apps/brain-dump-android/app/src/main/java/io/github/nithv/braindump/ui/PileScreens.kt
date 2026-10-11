@@ -341,6 +341,7 @@ private fun PileRowCard(
                     textDecoration = if (row.done) TextDecoration.LineThrough else null,
                 )
                 if (row.photo != null) PhotoThumb(row.photo, row.title, Modifier.padding(top = 8.dp))
+                if (row.audio != null) PlayButton(row.audio, Modifier.padding(top = 8.dp))
                 if (row.due != null) {
                     Text(
                         "📅 ${formatDue(row.due, now)}",

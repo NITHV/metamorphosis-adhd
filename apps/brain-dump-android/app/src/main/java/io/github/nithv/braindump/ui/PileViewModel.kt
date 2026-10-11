@@ -24,6 +24,7 @@ data class PileRow(
     val done: Boolean,
     val dueAtMs: Long?,
     val photo: File?,
+    val audio: File? = null,
 )
 
 /** `null` lists mean "still loading". */
@@ -87,6 +88,7 @@ class PileViewModel(
         done = item.doneAt != null,
         dueAtMs = item.dueAt,
         photo = photoFile?.let(repository::photoFile),
+        audio = audioFile?.let(repository::voiceFile),
     )
 }
 
