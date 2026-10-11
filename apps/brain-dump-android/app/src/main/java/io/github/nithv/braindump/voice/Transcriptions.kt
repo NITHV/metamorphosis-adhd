@@ -52,7 +52,7 @@ class Transcriptions(
     /** Runs one note. Internal so tests can await it. */
     internal suspend fun process(captureId: String) = mutex.withLock {
         if (captureId !in _pending.value) return@withLock // done meanwhile
-        val file = repository.getCapture(captureId)?.audioFile?.let(repository::voiceFile)
+        val file = repository.recordingOf(captureId) // a voice dump or a Pause note
         if (file == null || !file.isFile) return@withLock done(captureId) // deleted, or nothing to read
         when (val result = runCatching { transcribe(file) }.getOrElse { Transcript.Failed(it.toString()) }) {
             is Transcript.Text -> {

@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // versionCode must only ever go up: Android refuses to install a lower one over a higher one.
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
 
     signingConfigs {
@@ -68,6 +68,9 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true // Robolectric runs database tests on the JVM
     }
+    // Migration tests rebuild old database versions from the exported schemas (see room {} below).
+    // Robolectric reads the debug build's assets, so they go there; release builds never include them.
+    sourceSets.getByName("debug").assets.srcDir("$projectDir/schemas")
     lint {
         warningsAsErrors = false
         abortOnError = true

@@ -172,7 +172,7 @@ fun VoiceSheet(vm: VoiceViewModel) {
     }
 }
 
-private fun mmss(ms: Long): String {
+internal fun mmss(ms: Long): String {
     val s = ms / 1000
     return "%d:%02d".format(s / 60, s % 60)
 }
@@ -197,7 +197,7 @@ private fun BigRoundButton(
 }
 
 @Composable
-private fun LevelMeter(level: Float) {
+internal fun LevelMeter(level: Float) {
     val c = BrainDumpTheme.colors
     Box(
         Modifier
@@ -215,7 +215,7 @@ private fun LevelMeter(level: Float) {
 }
 
 @Composable
-private fun PillButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun PillButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = BrainDumpTheme.colors
     Box(
         contentAlignment = Alignment.Center,

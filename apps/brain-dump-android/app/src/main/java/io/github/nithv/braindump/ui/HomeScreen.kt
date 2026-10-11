@@ -70,6 +70,9 @@ import java.time.LocalTime
 fun HomeScreen(
     snackbar: SnackbarHostState,
     padding: PaddingValues,
+    paused: PausedViewModel,
+    onPause: () -> Unit,
+    onSeeAllPaused: () -> Unit,
     vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
     photoVm: PhotoViewModel = viewModel(factory = PhotoViewModel.Factory),
     voiceVm: VoiceViewModel = viewModel(factory = VoiceViewModel.Factory),
@@ -155,9 +158,11 @@ fun HomeScreen(
                 onDump = vm::dump,
                 onPhoto = photoVm::start,
                 onVoice = voiceVm::open,
+                onPause = onPause,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
+        item(key = "resume") { ResumeCard(paused, onSeeAll = onSeeAllPaused) }
         item(key = "inbox-heading") { InboxHeading(count = inbox?.size ?: 0) }
         when {
             inbox == null -> Unit // loading: show nothing rather than a misleading "empty"
@@ -240,6 +245,7 @@ private fun DumpBox(
     onDump: () -> Unit,
     onPhoto: () -> Unit,
     onVoice: () -> Unit,
+    onPause: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = BrainDumpTheme.colors
@@ -272,6 +278,7 @@ private fun DumpBox(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ToolButton("🎙️", "Record a voice dump", onVoice)
                 ToolButton("📷", "Take or choose a photo to dump", onPhoto)
+                ToolButton("⏸️", "Pause: save where you're up to", onPause)
             }
             Box(
                 contentAlignment = Alignment.Center,

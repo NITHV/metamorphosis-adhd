@@ -167,6 +167,12 @@ checkpoints   "Where did I leave off?"
 
 > **🎓 Design lesson: schema migrations are forever.**
 > Once the app is on your phone, its database can't be "reset" without losing data. Every change to the tables ships with a **migration** (old shape → new shape), and Room exports each schema version as a JSON file into the repo so tests can check every upgrade path (v1→v2, v1→v3, …). Migrations are **forward-only**: see "rollback" in §9 for why.
+>
+> *Built in N5, the first real migration (v1 → v2 adds `checkpoints`):* the tests rebuild a database **exactly as 0.5.0 left it** from the committed `1.json`, fill it with a voice dump, a photo dump and a filed item, upgrade it, and check two things. First, Room agrees the result matches `2.json` column for column. Second, every row is still there. A third test walks **every** old version to the newest, so the list grows as versions are added.
+>
+> We then broke the migration on purpose (left out one column, `next_step`), and three tests failed with "Migration didn't properly handle: checkpoints". Without them, that bug would have shown up as a crash on your phone the first time you paused something.
+>
+> Then the real thing: on the emulator, the 0.5.0 app with real data (two photos, a voice note, a filed item) was upgraded to 0.6.0. A full dump of every row **before and after was identical**, and the new table was there.
 
 ### Capacity estimate (back-of-the-envelope)
 
@@ -227,7 +233,11 @@ Heavy use: 20 dumps a day, 5 of them photos, 3 voice notes.
 
 **F. Widgets**: every change in the repository calls "refresh widgets", so the Status card updates **within a second**. No polling and no 30-minute wait.
 
-**G. Pause / Resume**: same as the website: voice note + "Next, I need to…" + optional tag/link; Resume plays it back; a 7-day "still relevant?" nudge.
+**G. Pause / Resume** (built in N5): same as the website. ⏸ (next to 🎙️ and 📷, or the **Paused** tab) opens a sheet: an optional voice note, "Where are you up to?", "Next, I need to…", and an optional tag or link. Home shows **Where you left off** with the newest one; **I'm back on it** resumes it (with Undo). After a week, a pause asks "Still relevant?" (**Keep it** / **Let it go 🍃**). If you only spoke, the phone fills in "where you were" from the recording, using the same background queue as voice dumps. Links open in your browser; Brain Dump itself still has no internet permission, and only http/https links are kept.
+
+> **🎓 SRE lesson: a new owner of files must be taught to the clean-up job (added in N5).** Pause notes keep their recordings in the same `audio/` folder as voice dumps. The clean-up job (§5 B) deletes any file *no database row points at*, and until now only voice dumps pointed at audio files. So without one extra line, **every Pause recording would have been deleted an hour after it was made**, silently, with no crash and no error. A reconciliation loop is only as correct as its idea of "what should exist". There's now a test that runs the clean-up on a Pause recording, and taking that one line out makes it fail.
+
+> **🎓 Design lesson: a half-written note should survive the phone (added in N5).** You often pause *because* something interrupted you, so you jump to another app, and Android may close Brain Dump while you're there. Everything typed in the sheet, and a finished recording, is kept in **saved state**, so it comes back as you left it. On the emulator: we typed "reply to Sam", pressed Home, killed the app, and reopened it. The sheet was back with the words in it. Swiping the sheet away also keeps your words; only **Cancel** throws them away.
 
 ---
 
@@ -340,6 +350,10 @@ A time-boxed experiment on the emulator (Android 15), feeding a recorded test se
 > On a server, a bad release is rolled back in seconds. On Android, **installing an older version over a newer one is blocked** (a lower `versionCode`), and even if forced, an older app can't read a database a newer migration already changed.
 > So the plan is **roll forward**: fix the bug and ship v1.2.1 quickly. That's why the release pipeline must be fast and boring, and why migrations get the heaviest testing.
 > Safety net: the app makes an **automatic local copy of the database before running any migration**, kept until the next successful launch.
+>
+> *Built in N5:* before Room opens the database, the app reads the version stamped in the file. If it's older than the app, it copies the file aside as `brain-dump.db.before-v1`. The copy goes to a temporary name first and is then renamed, the same atomic-rename trick as photos, so a half-finished copy never looks complete. A second attempt at the same upgrade **never overwrites** the first copy, because the first one is the true original. The copy is deleted at the first launch that finds the database already up to date, which proves the upgrade worked.
+>
+> One thing the emulator taught us: on the real 0.5.0 data, the main database file was only **4 KB**, while the dumps sat in the **write-ahead log** (`-wal`, 120 KB) waiting to be merged. A copy of just that file could have been almost empty. So the copy step also copies the log whenever one still holds changes. On the emulator the log had already been merged by the time of the copy, and the copy was checked by opening it: version 1, all 3 dumps and the filed item.
 
 ---
 
@@ -383,7 +397,7 @@ Each one ends with a **signed APK on your phone** and a short "what we learned" 
 | **N2** ✅ | **Sorting + piles**: chips, smart guess, date finder, split, piles, done/move/date/archive | Sort into piles | Transactions, shared test cases with the web |
 | **N3** ✅ | **Photo dumps**: camera, picker, shrink, thumbnails, full-screen view | Dump photos | Write order, atomic rename, reconciliation job |
 | **N4** ✅ | **Voice dumps**: spike, then recorder + playback + transcription | Dump by voice | Spikes, permissions, graceful degradation |
-| **N5** | **Pause / Resume** | Save and resume your place | First real schema migration (v1→v2) + migration tests |
+| **N5** ✅ | **Pause / Resume** | Save and resume your place | First real schema migration (v1→v2) + migration tests |
 | **N6** | **Widgets, shortcuts, Share to Brain Dump** | Use all three widgets and the share sheet | Event-driven updates, multiple entry points |
 | **N7** | **Backup, export/import, diagnostics** | Export, wipe, import, all back | RPO/RTO, restore drills, on-device observability |
 | **N8** | **Polish**: search, delete everything, settings, empty states, accessibility | Daily-drive it | Performance budget (cold start), crash-free rate |

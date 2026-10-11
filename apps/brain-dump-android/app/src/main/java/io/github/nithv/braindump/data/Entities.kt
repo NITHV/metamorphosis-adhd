@@ -59,3 +59,28 @@ data class ItemEntity(
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )
+
+/**
+ * "Where did I leave off?" A bookmark you leave before switching tasks (added in N5, database v2).
+ * Active = neither resumed nor dismissed. [updatedAt] doubles as "last confirmed still relevant",
+ * which drives the 7-day nudge (same as the website).
+ */
+@Entity(
+    tableName = "checkpoints",
+    indices = [Index(value = ["resumed_at", "dismissed_at", "created_at"])],
+)
+data class CheckpointEntity(
+    @PrimaryKey val id: String,
+    val label: String? = null,
+    @ColumnInfo(name = "project_tag") val projectTag: String? = null,
+    val link: String? = null,
+    /** File name inside the app's private audio/ folder, shared with voice dumps. */
+    @ColumnInfo(name = "audio_file") val audioFile: String? = null,
+    /** "Where are you up to?" Empty (never null) until typed or transcribed. */
+    val transcript: String = "",
+    @ColumnInfo(name = "next_step") val nextStep: String? = null,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "resumed_at") val resumedAt: Long? = null,
+    @ColumnInfo(name = "dismissed_at") val dismissedAt: Long? = null,
+)

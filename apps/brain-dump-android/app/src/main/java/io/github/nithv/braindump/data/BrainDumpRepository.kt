@@ -49,6 +49,7 @@ class BrainDumpRepository(
 ) {
     private val captures = db.captures()
     private val items = db.items()
+    private val checkpoints = db.checkpoints()
 
     val inbox: Flow<List<CaptureEntity>> = captures.inbox()
 
@@ -171,11 +172,17 @@ class BrainDumpRepository(
             val changed = captures.replacePlaceholder(id, VOICE_PLACEHOLDER, words, guessKind(words, localNow()), now)
             // Already filed into a pile while it was transcribing? Give the item the words too.
             items.replacePlaceholderTitle(id, VOICE_PLACEHOLDER, words, now)
-            changed > 0
+            // Or it's a Pause note: the words fill "where was I" if you didn't type one.
+            val filled = checkpoints.fillTranscript(id, words, now)
+            changed + filled > 0
         }
     }
 
     suspend fun getCapture(id: String): CaptureEntity? = captures.get(id)
+
+    /** The recording behind a voice dump or a Pause note (ids never collide: both are UUIDs). */
+    suspend fun recordingOf(id: String): File? =
+        (captures.get(id)?.audioFile ?: checkpoints.get(id)?.audioFile)?.let(::voiceFile)
 
     fun voiceFile(name: String): File? = voice?.file(name)
 
@@ -188,7 +195,8 @@ class BrainDumpRepository(
      */
     suspend fun cleanUpFiles(): Int {
         val photoCount = photos?.reconcile(captures.photoFiles().toSet()) ?: 0
-        val voiceCount = voice?.reconcile(captures.audioFiles().toSet()) ?: 0
+        // Pause notes keep their recordings in the same folder, so they count as "pointed at" too.
+        val voiceCount = voice?.reconcile((captures.audioFiles() + checkpoints.audioFiles()).toSet()) ?: 0
         return photoCount + voiceCount
     }
 
@@ -293,6 +301,90 @@ class BrainDumpRepository(
     suspend fun setDue(itemId: String, dueAt: LocalDateTime?) {
         items.setDue(itemId, dueAt?.toEpochMs(), clock())
     }
+
+    // --- Pause / Resume ("Where did I leave off?") ----------------------------------------------
+
+    /** Paused and not yet resumed or let go, newest first. */
+    val activeCheckpoints: Flow<List<CheckpointEntity>> = checkpoints.active()
+
+    val recentlyResumed: Flow<List<CheckpointEntity>> = checkpoints.recentlyResumed()
+
+    /** A fresh id for a Pause note recording into [FileStore.pendingFile] (it becomes the checkpoint's id). */
+    fun newCheckpointId(): String = newId()
+
+    /**
+     * Saves your place. [id] comes from [newCheckpointId]; if [withRecording], its recording is
+     * waiting in the voice store's pending file and is committed first (same write order as voice
+     * dumps). Needs at least one of: words, a next step, a recording (same rule as the website).
+     */
+    suspend fun pause(
+        id: String,
+        whereText: String,
+        nextStep: String,
+        tag: String = "",
+        link: String = "",
+        withRecording: Boolean = false,
+    ): String {
+        val transcript = whereText.trim().take(MAX_CAPTURE_LENGTH)
+        val next = nextStep.trim().take(500).ifEmpty { null }
+        require(transcript.isNotEmpty() || next != null || withRecording) { "Nothing to save" }
+        val audioFile = if (withRecording) checkNotNull(voice) { "No voice store" }.commit(id) else null
+        val now = clock()
+        try {
+            checkpoints.insert(
+                CheckpointEntity(
+                    id = id,
+                    projectTag = tag.trim().take(60).ifEmpty { null },
+                    link = normalizeLink(link),
+                    audioFile = audioFile,
+                    transcript = transcript,
+                    nextStep = next,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        } catch (e: Exception) {
+            if (audioFile != null) runCatching { voice?.uncommit(id) }
+            throw e
+        }
+        return id
+    }
+
+    /** "I'm back on it." */
+    suspend fun resume(id: String) {
+        checkpoints.setResumed(id, clock())
+    }
+
+    suspend fun unresume(id: String) {
+        checkpoints.setResumed(id, null)
+    }
+
+    /** "Let it go": hidden, not deleted, so Undo works. */
+    suspend fun dismiss(id: String) {
+        checkpoints.setDismissed(id, clock())
+    }
+
+    suspend fun undismiss(id: String) {
+        checkpoints.setDismissed(id, null)
+    }
+
+    /** "Keep it": still relevant, so ask again in a week. */
+    suspend fun keep(id: String) {
+        checkpoints.touch(id, clock())
+    }
+}
+
+/**
+ * A link is only kept if it's a plain web address (no javascript:, intent: or file:), same rule as
+ * the website. "docs.google.com/x" gets https:// added. Anything else is dropped, not an error.
+ */
+fun normalizeLink(raw: String): String? {
+    val text = raw.trim().take(2000)
+    if (text.isEmpty()) return null
+    val withScheme = if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:").containsMatchIn(text)) text else "https://$text"
+    return runCatching { java.net.URI(withScheme) }.getOrNull()
+        ?.takeIf { (it.scheme.equals("https", true) || it.scheme.equals("http", true)) && !it.host.isNullOrEmpty() }
+        ?.toString()
 }
 
 /** Only tasks and reminders have dates (same rule as the website). */
