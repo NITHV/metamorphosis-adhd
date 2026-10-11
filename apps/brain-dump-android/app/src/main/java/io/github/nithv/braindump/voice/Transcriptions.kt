@@ -91,6 +91,8 @@ class Transcriptions(
         private const val KEY_PENDING = "pending"
         private fun attemptsKey(id: String) = "attempts:$id"
 
-        fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("transcriptions", Context.MODE_PRIVATE)
+        /** The queue's file. Tests pass their own [name]: the real app's startup job uses the default one. */
+        fun prefs(context: Context, name: String = "transcriptions"): SharedPreferences =
+            context.getSharedPreferences(name, Context.MODE_PRIVATE)
     }
 }

@@ -33,6 +33,7 @@ class VoiceDumpTest {
     private lateinit var voice: FileStore
     private lateinit var repo: BrainDumpRepository
     private var nextId = 0
+    private lateinit var prefs: android.content.SharedPreferences
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     @Before
@@ -40,7 +41,9 @@ class VoiceDumpTest {
         db = Room.inMemoryDatabaseBuilder(context, BrainDumpDatabase::class.java).allowMainThreadQueries().build()
         voice = FileStore(tmp.newFolder("audio"), ".m4a")
         repo = BrainDumpRepository(db, newId = { "id-${nextId++}" }, voice = voice)
-        Transcriptions.prefs(context).edit().clear().commit()
+        // Our own queue file. Robolectric also starts the real app, whose startup job resumes the
+        // DEFAULT queue file; sharing it once let that job reset this test's retry counter (CI flake).
+        prefs = Transcriptions.prefs(context, "test-transcriptions-${System.nanoTime()}")
     }
 
     @After
@@ -97,7 +100,7 @@ class VoiceDumpTest {
     }
 
     private fun queue(result: (File) -> Transcript) =
-        Transcriptions(repo, Transcriptions.prefs(context), CoroutineScope(Dispatchers.Unconfined)) { result(it) }
+        Transcriptions(repo, prefs, CoroutineScope(Dispatchers.Unconfined)) { result(it) }
 
     @Test
     fun theQueueFillsInTheWords() = runTest {
