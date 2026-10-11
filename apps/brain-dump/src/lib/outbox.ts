@@ -206,6 +206,40 @@ export async function sync(): Promise<void> {
   }
 }
 
+/**
+ * "Delete everything", on this device: drops every dump still waiting to upload and anything shared
+ * in but not yet picked up. Waits for a delivery already in flight to finish first; otherwise it
+ * could land on the server *after* the server-side delete and quietly bring a dump back.
+ */
+export async function forgetEverythingOnDevice(): Promise<void> {
+  const paused = currentUserId;
+  currentUserId = null; // stops new sync runs from starting
+  try {
+    const deadline = Date.now() + 15_000;
+    while (syncing && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+    const db = await openDb();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([STORE, SHARED_STORE], "readwrite");
+        tx.objectStore(STORE).clear();
+        tx.objectStore(SHARED_STORE).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+    // Pages cached for offline use contain the old dumps too.
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k.startsWith("pages-")).map((k) => caches.delete(k)));
+    }
+  } finally {
+    currentUserId = paused;
+    await reload();
+  }
+}
+
 /** Starts background delivery for the signed-in user. Returns a cleanup function. */
 export function startOutboxSync(userId: string): () => void {
   currentUserId = userId;

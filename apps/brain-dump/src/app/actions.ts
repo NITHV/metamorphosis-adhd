@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, inArray } from "drizzle-orm";
+import { del, list } from "@vercel/blob";
 import { headers } from "next/headers";
 import { refresh } from "next/cache";
 import { auth } from "@repo/auth/server";
@@ -340,4 +341,52 @@ export async function undismissCheckpoint(id: string) {
 /** "Still relevant": resets the 7-day nudge (updated_at bumps automatically). */
 export async function keepCheckpoint(id: string) {
   await updateCheckpoint(id, { updatedAt: new Date() });
+}
+
+// ---------------------------------------------------------------------------
+// Delete everything (settings)
+// ---------------------------------------------------------------------------
+
+export type DeleteResult = { ok: true; files: number } | { ok: false; error: string };
+
+/**
+ * Deletes all of this user's dumps, items, paused notes, voice notes and photos. The account
+ * itself stays, so they can start fresh.
+ *
+ * Order matters (design doc §6): rows first, in one batch, then files by FOLDER rather than by
+ * the links in those rows. Listing the folder also catches files no row points to (an upload that
+ * was abandoned halfway), and it makes a retry safe: if deleting files fails partway, running it
+ * again just finishes the job. The opposite order could leave rows pointing at missing files.
+ */
+export async function deleteEverything(confirmation: string): Promise<DeleteResult> {
+  const userId = await requireUserId();
+  if (confirmation.trim().toLowerCase() !== "delete") return { ok: false, error: 'Type "delete" to confirm.' };
+
+  await db.batch([
+    db.delete(items).where(eq(items.userId, userId)),
+    db.delete(captures).where(eq(captures.userId, userId)),
+    db.delete(checkpoints).where(eq(checkpoints.userId, userId)),
+  ]);
+  refresh();
+
+  let files = 0;
+  try {
+    for (const folder of [`voice/${userId}/`, `photo/${userId}/`]) {
+      let cursor: string | undefined;
+      do {
+        const page = await list({ prefix: folder, cursor, limit: 1000 });
+        if (page.blobs.length > 0) {
+          await del(page.blobs.map((b) => b.url));
+          files += page.blobs.length;
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+    }
+  } catch {
+    return {
+      ok: false,
+      error: "Your notes are deleted, but some photos or voice files weren't removed yet. Tap Delete again to finish.",
+    };
+  }
+  return { ok: true, files };
 }

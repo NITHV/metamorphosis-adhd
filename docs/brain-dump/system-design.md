@@ -232,7 +232,16 @@ A photo dump with no caption is stored with the text "📷 Photo", so every list
 - Live transcription in Chrome/Edge uses the browser vendor's speech service; on-device Whisper keeps audio local. Both are explained on the privacy page.
 - **No AI service is used.** Your dumps never leave our own servers and storage.
 - Secrets (DB URL, storage token) live in Vercel environment variables, never in the code.
-- "Delete everything" button in settings: removes all captures, items, checkpoints, audio **and photos**.
+- "Delete everything" button in settings (built in milestone 8): removes all captures, items, checkpoints, audio **and photos**, and also whatever is still waiting on the device to upload. The account stays. "Download a copy" (a JSON file) comes first, so nothing has to be lost by accident.
+
+> **🎓 SRE lesson: deleting is a distributed problem.** Your data lives in four places: the database, the file store, the phone's upload queue, and pages cached for offline use. "Delete everything" has to reach all four, in a safe order:
+> 1. **The device queue first.** Otherwise a dump still waiting to upload could arrive a second *after* the server was wiped, and quietly bring itself back. The app waits for any upload already in flight to finish, then empties the queue.
+> 2. **Database rows next**, all in one batch, so it's all-or-nothing.
+> 3. **Files last, by folder, not by the links in the rows.** Listing the folder also finds **orphans** (a photo whose upload finished but whose dump never got saved). It also makes a **retry safe**: if deleting files fails halfway, pressing the button again just finishes the job (it's *idempotent*).
+>
+> The end-to-end test plants an orphan file and a dump waiting offline, then checks that all of it is gone and stays gone.
+
+> **🎓 Design lesson: the simplest search that works.** Search is a plain "contains" query on the database. For one person's few thousand notes it takes a few milliseconds, so there's no search engine to run, pay for or keep in sync. If it ever gets slow, a database index (Postgres `pg_trgm`) speeds up the same query without changing the app. One detail: `%` and `_` are wildcards in SQL, so they're escaped. Searching "100%" finds "100%", not everything.
 
 ---
 
@@ -270,7 +279,7 @@ Notes:
 5. ✅ Pause / Resume.
 6. ✅ PWA install + offline queue.
 7. ✅ **Photo dumps** (camera or gallery, optional caption, shrink + GPS strip on the device, private storage, offline outbox, thumbnails and full-screen view) **+ home-screen shortcuts + Share to Brain Dump.**
-8. Polish: search, delete-everything (incl. photos), settings page, empty states.
+8. ✅ **Polish**: search across everything, settings page, "Download a copy", "Delete everything" (incl. photos, voice files and the device queue), empty states.
 
 Running alongside: the separate **Brain Dump Android app** (phone-only, native, with real home-screen widgets), see `docs/brain-dump-android/system-design.md`. The two share no code or data.
 

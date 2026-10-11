@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         ← Brain Dump
       </Link>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted">Last updated: October 11, 2026 (added photos; no AI)</p>
+      <p className="mt-2 text-sm text-muted">Last updated: October 11, 2026 (photos; no AI; delete everything and download a copy)</p>
 
       <div className="mt-8 flex flex-col gap-6 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5">
         <p>
@@ -93,15 +93,17 @@ export default function PrivacyPage() {
         <section>
           <h2>Deleting your data</h2>
           <p>
-            You can ask for your account and all of its data to be deleted at any time by opening an issue
-            on the project&apos;s{" "}
+            <b>Settings → Delete everything</b> removes all of your dumps, filed items, paused notes, voice
+            recordings and photos straight away, from our database, our file storage and the device you&apos;re
+            using. <b>Settings → Download a copy</b> gives you everything you wrote first, as a file. To delete
+            your account itself too, open an issue on the project&apos;s{" "}
             <a
               href="https://github.com/NITHV/metamorphosis-adhd/issues"
               className="text-[var(--pill-blue)] underline-offset-4 hover:underline"
             >
               GitHub page
             </a>
-            . A self-serve &ldquo;delete everything&rdquo; button is planned.
+            .
           </p>
         </section>
 
