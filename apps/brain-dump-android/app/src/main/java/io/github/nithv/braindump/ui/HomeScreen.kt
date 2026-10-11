@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.SnackbarHostState
@@ -70,6 +71,7 @@ fun HomeScreen(
     snackbar: SnackbarHostState,
     padding: PaddingValues,
     vm: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
+    photoVm: PhotoViewModel = viewModel(factory = PhotoViewModel.Factory),
 ) {
     val c = BrainDumpTheme.colors
     val state by vm.state.collectAsStateWithLifecycle()
@@ -93,6 +95,18 @@ fun HomeScreen(
                         val result = snackbar.showSnackbar("Filed to ${event.kind.look.pile}", actionLabel = "Undo")
                         if (result == SnackbarResult.ActionPerformed) vm.unsort(event.captureId)
                     }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(photoVm) {
+        photoVm.events.collect { event ->
+            scope.launch {
+                snackbar.currentSnackbarData?.dismiss()
+                when (event) {
+                    PhotoEvent.Saved -> snackbar.showSnackbar("Saved ✓")
+                    PhotoEvent.SaveFailed -> snackbar.showSnackbar("Couldn't save the photo. Try again.")
                 }
             }
         }
@@ -126,6 +140,7 @@ fun HomeScreen(
                 text = vm.draft,
                 onTextChange = { vm.updateDraft(it.take(MAX_CAPTURE_LENGTH)) },
                 onDump = vm::dump,
+                onPhoto = photoVm::start,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
@@ -157,6 +172,7 @@ fun HomeScreen(
             )
         }
     }
+    PhotoSheet(photoVm)
 }
 
 @Composable
@@ -207,6 +223,7 @@ private fun DumpBox(
     text: String,
     onTextChange: (String) -> Unit,
     onDump: () -> Unit,
+    onPhoto: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = BrainDumpTheme.colors
@@ -235,7 +252,18 @@ private fun DumpBox(
             )
         }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(48.dp)
+                    .chunky(fill = c.card, ink = c.ink, radius = 14.dp, shadow = 3.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(role = Role.Button, onClick = onPhoto)
+                    .semantics { contentDescription = "Take or choose a photo to dump" },
+            ) {
+                Text("📷", fontSize = 20.sp)
+            }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -326,6 +354,9 @@ private fun InboxRowCard(
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 15.dp),
             )
+        }
+        if (row.photo != null) {
+            PhotoThumb(row.photo, row.text, Modifier.padding(start = 48.dp, top = 8.dp))
         }
         Column(Modifier.padding(start = 48.dp, top = 8.dp)) {
             if (row.due != null) {

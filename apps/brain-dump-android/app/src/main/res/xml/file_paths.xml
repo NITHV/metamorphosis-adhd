@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only folder another app may write into: the camera app drops the full-size photo here,
+     Brain Dump shrinks it into its private photos/ folder and deletes the original. -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>

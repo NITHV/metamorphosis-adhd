@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // versionCode must only ever go up: Android refuses to install a lower one over a higher one.
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
     }
 
     signingConfigs {

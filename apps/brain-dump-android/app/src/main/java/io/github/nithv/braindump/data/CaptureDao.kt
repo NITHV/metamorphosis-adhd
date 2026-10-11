@@ -22,6 +22,10 @@ interface CaptureDao {
     @Query("UPDATE captures SET status = :status, updated_at = :now WHERE id = :id")
     suspend fun setStatus(id: String, status: CaptureStatus, now: Long): Int
 
+    /** Every photo file a dump points at, whatever its status (archived dumps keep their photo). */
+    @Query("SELECT photo_file FROM captures WHERE photo_file IS NOT NULL")
+    suspend fun photoFiles(): List<String>
+
     @Query("SELECT * FROM captures WHERE id = :id")
     suspend fun get(id: String): CaptureEntity?
 }

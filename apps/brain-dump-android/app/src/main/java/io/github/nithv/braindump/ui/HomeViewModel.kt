@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalDateTime
 
 data class InboxRow(
@@ -36,6 +37,8 @@ data class InboxRow(
     /** A date spotted in the text; tasks and reminders keep it when filed. */
     val due: LocalDateTime?,
     val canSplit: Boolean,
+    /** The photo of a photo dump. */
+    val photo: File?,
 )
 
 /** What the Home screen shows. `null` inbox means "still loading" (so we don't flash "empty"). */
@@ -77,6 +80,7 @@ class HomeViewModel(
                         suggested = c.suggestedKind ?: guessKind(c.rawText, now),
                         due = findDate(c.rawText, now),
                         canSplit = repository.canSplit(c),
+                        photo = c.photoFile?.let(repository::photoFile),
                     )
                 },
             )

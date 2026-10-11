@@ -57,7 +57,7 @@ class SortingTest {
 
         assertTrue(repo.inbox.first().isEmpty())
         assertEquals(CaptureStatus.SORTED, db.captures().get(id)!!.status)
-        val item = repo.pile(Kind.REMINDER).first().single()
+        val item = repo.pile(Kind.REMINDER).first().single().item
         assertEquals("call mom tomorrow 5pm", item.title)
         assertEquals(id, item.captureId)
         assertEquals(ms(LocalDateTime.of(2026, 10, 11, 17, 0)), item.dueAt)
@@ -66,7 +66,7 @@ class SortingTest {
     @Test
     fun ideasAndWorriesNeverGetADate() = runTest {
         repo.sort(dump("maybe paint the room on friday"), Kind.IDEA)
-        assertNull(repo.pile(Kind.IDEA).first().single().dueAt)
+        assertNull(repo.pile(Kind.IDEA).first().single().item.dueAt)
     }
 
     @Test
@@ -150,13 +150,13 @@ class SortingTest {
     fun movingToIdeasDropsTheDateAndUndoRestoresIt() = runTest {
         val id = dump("dentist on friday")
         val itemId = repo.sort(id, Kind.REMINDER)
-        val due = repo.pile(Kind.REMINDER).first().single().dueAt!!
+        val due = repo.pile(Kind.REMINDER).first().single().item.dueAt!!
 
         repo.move(itemId, Kind.IDEA)
-        assertNull(repo.pile(Kind.IDEA).first().single().dueAt)
+        assertNull(repo.pile(Kind.IDEA).first().single().item.dueAt)
 
         repo.unmove(itemId, Kind.REMINDER, due)
-        assertEquals(due, repo.pile(Kind.REMINDER).first().single().dueAt)
+        assertEquals(due, repo.pile(Kind.REMINDER).first().single().item.dueAt)
     }
 
     @Test
@@ -184,8 +184,8 @@ class SortingTest {
     fun settingADateUsesThePhonesTimeZone() = runTest {
         val itemId = repo.sort(dump("buy milk"), Kind.TASK)
         repo.setDue(itemId, LocalDateTime.of(2026, 10, 20, 18, 30))
-        assertEquals(ms(LocalDateTime.of(2026, 10, 20, 18, 30)), repo.pile(Kind.TASK).first().single().dueAt)
+        assertEquals(ms(LocalDateTime.of(2026, 10, 20, 18, 30)), repo.pile(Kind.TASK).first().single().item.dueAt)
         repo.setDue(itemId, null)
-        assertNull(repo.pile(Kind.TASK).first().single().dueAt)
+        assertNull(repo.pile(Kind.TASK).first().single().item.dueAt)
     }
 }

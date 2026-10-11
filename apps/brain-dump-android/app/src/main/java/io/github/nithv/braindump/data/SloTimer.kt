@@ -14,6 +14,12 @@ object SloTimer {
     /** Text dump: tap "Dump it" → saved. Target: 99% under 300 ms. */
     const val SAVE_TEXT_TARGET_MS = 300L
 
+    /** Photo dump: shrinking (photo chosen → ready to review). Target: 95% under 2 s. */
+    const val SHRINK_PHOTO_TARGET_MS = 2000L
+
+    /** Photo dump: tap "Dump it" → saved (rename + row). Target: 99% under 300 ms. */
+    const val SAVE_PHOTO_TARGET_MS = 300L
+
     inline fun <T> measure(name: String, targetMs: Long, block: () -> T): T {
         val start = SystemClock.elapsedRealtime()
         try {

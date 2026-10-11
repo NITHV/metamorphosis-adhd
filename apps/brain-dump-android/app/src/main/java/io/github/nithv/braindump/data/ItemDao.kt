@@ -1,12 +1,20 @@
 package io.github.nithv.braindump.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 data class KindCount(val kind: Kind, val n: Int)
+
+/** A pile item plus the photo of the dump it came from, if any. */
+data class PileItem(
+    @Embedded val item: ItemEntity,
+    @ColumnInfo(name = "photo_file") val photoFile: String?,
+)
 
 @Dao
 interface ItemDao {
@@ -15,11 +23,13 @@ interface ItemDao {
 
     /** One pile: everything not archived, except things finished before [doneSince]. */
     @Query(
-        """SELECT * FROM items WHERE kind = :kind AND archived_at IS NULL
-           AND (done_at IS NULL OR done_at >= :doneSince)
-           ORDER BY created_at DESC, id LIMIT 500""",
+        """SELECT items.*, captures.photo_file AS photo_file FROM items
+           LEFT JOIN captures ON captures.id = items.capture_id
+           WHERE items.kind = :kind AND items.archived_at IS NULL
+           AND (items.done_at IS NULL OR items.done_at >= :doneSince)
+           ORDER BY items.created_at DESC, items.id LIMIT 500""",
     )
-    fun pile(kind: Kind, doneSince: Long): Flow<List<ItemEntity>>
+    fun pile(kind: Kind, doneSince: Long): Flow<List<PileItem>>
 
     /** Open (not done, not archived) items per pile. */
     @Query("SELECT kind, COUNT(*) AS n FROM items WHERE archived_at IS NULL AND done_at IS NULL GROUP BY kind")

@@ -2,6 +2,7 @@
 <!--
   Note what is NOT here: no INTERNET permission. Android therefore blocks this app from
   opening any network connection, so dumps can never leave the phone through the app.
+  No CAMERA or storage permission either: photos come from the camera app or the Photo Picker.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -22,5 +23,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lets the camera app write one photo into cache/camera/ (see res/xml/file_paths.xml). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

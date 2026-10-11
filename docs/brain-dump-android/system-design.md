@@ -201,6 +201,13 @@ Heavy use: 20 dumps a day, 5 of them photos, 3 voice notes.
 > - Half-written file → prevented by writing to `*.tmp` and then **renaming**, which the filesystem does in one step (atomically).
 >
 > Choosing the order so that every possible crash leaves a *safe* state is a core reliability technique. The clean-up job is a **reconciliation loop**, the same pattern Kubernetes uses: regularly compare "what should exist" with "what does exist" and fix the difference.
+>
+> *Built in N3:* the clean-up runs in the background every time the app starts. It only touches files **older than an hour**. Without that grace period it could race a save in progress: the file has just been renamed, the row is a millisecond away, and the cleaner sees an "orphan". Running it twice changes nothing (it's *idempotent*). A test breaks the database save *after* the rename and checks that the file goes back to "pending" so you can tap Dump it again.
+
+> **🎓 SRE lesson: the app can die while you're in another app (added in N3).** Tapping **Take photo** hands you to the phone's camera app, and while you're there Android may close Brain Dump to free memory. Cheap phones do this often. When you come back, Android restarts Brain Dump and delivers the photo, but everything that lived only in memory is gone, including *where the camera was told to save the picture*. So that one path is kept in saved state. We tested it by killing the app on the emulator while the camera was open: the photo still arrived on the review screen.
+
+- **No permissions needed.** The camera button uses the phone's own camera app, and **Choose** uses Android's Photo Picker, which hands over only the one photo you pick. The app still has no camera, storage or internet permission.
+- **Hidden data is dropped by design.** Shrinking re-draws the picture into a brand-new WebP file, which carries no EXIF metadata, so there is no GPS location to forget to strip. A test plants GPS in a 12-megapixel photo and checks that the result is upright, 1600 px and location-free. On the emulator, a 1.5 MB photo was stored as 236 KB.
 
 **C. Voice dump**: hold or tap the mic → record (AAC) → stop → saved immediately with "🎙️ Voice note" → the phone transcribes in the background (where supported) and fills in the text.
 
@@ -356,7 +363,7 @@ Each one ends with a **signed APK on your phone** and a short "what we learned" 
 | **N0** ✅ | **Walking skeleton**: install Android SDK + emulator, empty app with theme and icon, GitHub Actions CI, signing key, first GitHub Release | Install "Brain Dump" and see the Home screen | Release pipeline, signing, versioning |
 | **N1** ✅ | **Text dumps + Inbox**: Room database v1, repository, Dump box, Inbox, clear/undo | Dump text and see it in the Inbox | Data layer, unidirectional flow, first SLO timer |
 | **N2** ✅ | **Sorting + piles**: chips, smart guess, date finder, split, piles, done/move/date/archive | Sort into piles | Transactions, shared test cases with the web |
-| **N3** | **Photo dumps**: camera, picker, shrink, thumbnails, full-screen view | Dump photos | Write order, atomic rename, reconciliation job |
+| **N3** ✅ | **Photo dumps**: camera, picker, shrink, thumbnails, full-screen view | Dump photos | Write order, atomic rename, reconciliation job |
 | **N4** | **Voice dumps**: spike, then recorder + playback + transcription | Dump by voice | Spikes, permissions, graceful degradation |
 | **N5** | **Pause / Resume** | Save and resume your place | First real schema migration (v1→v2) + migration tests |
 | **N6** | **Widgets, shortcuts, Share to Brain Dump** | Use all three widgets and the share sheet | Event-driven updates, multiple entry points |

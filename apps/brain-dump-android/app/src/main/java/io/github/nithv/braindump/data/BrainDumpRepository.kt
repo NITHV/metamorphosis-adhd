@@ -6,6 +6,7 @@ import io.github.nithv.braindump.sort.guessKind
 import io.github.nithv.braindump.sort.splitDump
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -13,6 +14,9 @@ import java.util.UUID
 
 /** Same limit as the website (apps/brain-dump/src/lib/limits.ts). */
 const val MAX_CAPTURE_LENGTH = 5000
+
+/** What a photo dump without a caption says (same as the website). */
+const val PHOTO_PLACEHOLDER = "📷 Photo"
 
 private const val DAY_MS = 24 * 60 * 60 * 1000L
 
@@ -35,6 +39,8 @@ class BrainDumpRepository(
     private val clock: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
     private val zone: () -> ZoneId = ZoneId::systemDefault,
+    /** Where photo files live. Null in tests that never touch photos. */
+    val photos: PhotoStore? = null,
 ) {
     private val captures = db.captures()
     private val items = db.items()
@@ -47,7 +53,7 @@ class BrainDumpRepository(
     }
 
     /** One pile, plus anything ticked off in the last day (so finishing something feels good). */
-    fun pile(kind: Kind): Flow<List<ItemEntity>> = items.pile(kind, clock() - DAY_MS)
+    fun pile(kind: Kind): Flow<List<PileItem>> = items.pile(kind, clock() - DAY_MS)
 
     /** The phone's wall-clock time, for reading "tomorrow 5pm" the way the person meant it. */
     fun localNow(): LocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(clock()), zone())
@@ -77,6 +83,54 @@ class BrainDumpRepository(
             captures.insert(capture)
             DumpResult.Saved(capture.id)
         }
+    }
+
+    /** A fresh id for a photo that's about to be shrunk into [PhotoStore.pendingFile]. */
+    fun newPhotoId(): String = newId()
+
+    /**
+     * Saves a photo dump whose shrunk file is waiting in [PhotoStore.pendingFile]. Write order
+     * (design doc §5 B): first the file is committed (atomic rename), THEN the row is written. If the
+     * row fails, the rename is undone so tapping "Dump it" again still works.
+     */
+    suspend fun dumpPhoto(id: String, caption: String): String {
+        val store = checkNotNull(photos) { "No photo store" }
+        val text = caption.trim().take(MAX_CAPTURE_LENGTH)
+        return SloTimer.measure("save_photo", SloTimer.SAVE_PHOTO_TARGET_MS) {
+            val fileName = store.commit(id)
+            val now = clock()
+            try {
+                captures.insert(
+                    CaptureEntity(
+                        id = id,
+                        rawText = text.ifEmpty { PHOTO_PLACEHOLDER },
+                        source = CaptureSource.PHOTO,
+                        photoFile = fileName,
+                        status = CaptureStatus.INBOX,
+                        // Only words can be guessed from; a bare photo gets no suggestion.
+                        suggestedKind = if (text.isEmpty()) null else guessKind(text, localNow()),
+                        createdAt = now,
+                        updatedAt = now,
+                    ),
+                )
+            } catch (e: Exception) {
+                runCatching { store.uncommit(id) }
+                throw e
+            }
+            id
+        }
+    }
+
+    /** The file behind a photo dump, for showing it. */
+    fun photoFile(name: String): File? = photos?.file(name)
+
+    /**
+     * The reconciliation job (run at app start): deletes photo files that no dump points at and
+     * pending photos nobody finished. Returns how many files it removed.
+     */
+    suspend fun cleanUpPhotos(): Int {
+        val store = photos ?: return 0
+        return store.reconcile(captures.photoFiles().toSet())
     }
 
     /** "Clear from inbox": archived, not deleted, so Undo can bring it back. */
