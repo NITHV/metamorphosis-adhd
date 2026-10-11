@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // versionCode must only ever go up: Android refuses to install a lower one over a higher one.
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     signingConfigs {
@@ -103,4 +103,13 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// The website and this app must agree on smart guesses, dates and splits, so both run the same
+// cases file (shared/smart-guess-cases.json at the repo root). Declared as an input so editing the
+// cases re-runs the tests instead of reusing a cached "passed".
+val sharedCases = rootProject.file("../../shared/smart-guess-cases.json")
+tasks.withType<Test>().configureEach {
+    inputs.file(sharedCases).withPathSensitivity(PathSensitivity.NONE)
+    systemProperty("brainDump.sharedCases", sharedCases.absolutePath)
 }

@@ -10,18 +10,33 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.nithv.braindump.BrainDumpApp
 import io.github.nithv.braindump.data.BrainDumpRepository
-import io.github.nithv.braindump.data.CaptureEntity
 import io.github.nithv.braindump.data.DraftStore
 import io.github.nithv.braindump.data.DumpResult
+import io.github.nithv.braindump.data.Kind
+import io.github.nithv.braindump.data.NotInInboxException
+import io.github.nithv.braindump.sort.findDate
+import io.github.nithv.braindump.sort.guessKind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 
-data class InboxRow(val id: String, val text: String, val createdAt: Long)
+data class InboxRow(
+    val id: String,
+    val text: String,
+    val createdAt: Long,
+    /** The chip to highlight. Only a hint: any chip can be tapped. */
+    val suggested: Kind?,
+    /** A date spotted in the text; tasks and reminders keep it when filed. */
+    val due: LocalDateTime?,
+    val canSplit: Boolean,
+)
 
 /** What the Home screen shows. `null` inbox means "still loading" (so we don't flash "empty"). */
 data class HomeUiState(val inbox: List<InboxRow>? = null)
@@ -31,6 +46,9 @@ sealed interface HomeEvent {
     data object Saved : HomeEvent
     data class SaveFailed(val reason: String) : HomeEvent
     data class Cleared(val id: String) : HomeEvent
+    data class Filed(val captureId: String, val kind: Kind) : HomeEvent
+    data class Split(val parts: Int) : HomeEvent
+    data class Failed(val message: String) : HomeEvent
 }
 
 class HomeViewModel(
@@ -48,7 +66,22 @@ class HomeViewModel(
     }
 
     val state: StateFlow<HomeUiState> = repository.inbox
-        .map { rows -> HomeUiState(rows.map(CaptureEntity::toRow)) }
+        .map { rows ->
+            val now = repository.localNow()
+            HomeUiState(
+                rows.map { c ->
+                    InboxRow(
+                        id = c.id,
+                        text = c.rawText,
+                        createdAt = c.createdAt,
+                        suggested = c.suggestedKind ?: guessKind(c.rawText, now),
+                        due = findDate(c.rawText, now),
+                        canSplit = repository.canSplit(c),
+                    )
+                },
+            )
+        }
+        .flowOn(Dispatchers.Default) // text rules run off the main thread
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
@@ -94,6 +127,33 @@ class HomeViewModel(
         viewModelScope.launch { repository.restore(id) }
     }
 
+    fun sort(id: String, kind: Kind) = attempt("Couldn't file that one. Try again.") {
+        repository.sort(id, kind)
+        HomeEvent.Filed(id, kind)
+    }
+
+    fun unsort(id: String) {
+        viewModelScope.launch { repository.unsort(id) }
+    }
+
+    fun split(id: String) = attempt("Couldn't split that one. Try again.") {
+        HomeEvent.Split(repository.split(id))
+    }
+
+    /** Runs a change; a double tap on something already gone is silently ignored, not an error. */
+    private fun attempt(failure: String, block: suspend () -> HomeEvent) {
+        viewModelScope.launch {
+            val event = try {
+                block()
+            } catch (e: NotInInboxException) {
+                null
+            } catch (e: Exception) {
+                HomeEvent.Failed(failure)
+            }
+            event?.let { _events.send(it) }
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -103,5 +163,3 @@ class HomeViewModel(
         }
     }
 }
-
-private fun CaptureEntity.toRow() = InboxRow(id = id, text = rawText, createdAt = createdAt)

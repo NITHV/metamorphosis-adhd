@@ -5,10 +5,10 @@ name: Android
 on:
   push:
     branches: [main]
-    paths: ["apps/brain-dump-android/**", ".github/workflows/android.yml"]
+    paths: ["apps/brain-dump-android/**", "shared/**", ".github/workflows/android.yml"]
     tags: ["android-v*"] # path filters don't apply to tag pushes
   pull_request:
-    paths: ["apps/brain-dump-android/**", ".github/workflows/android.yml"]
+    paths: ["apps/brain-dump-android/**", "shared/**", ".github/workflows/android.yml"]
 
 permissions:
   contents: write # needed to create GitHub Releases

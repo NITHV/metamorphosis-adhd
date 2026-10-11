@@ -1,0 +1,27 @@
+# Brain Dump website: runs the shared smart-guess cases (shared/smart-guess-cases.json) against the
+# website's code. The Android workflow runs the same file, so the two apps can't quietly disagree.
+# (Deploys are separate: Vercel builds every push to main.)
+name: Web
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/brain-dump/**", "shared/**", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["apps/brain-dump/**", "shared/**", ".github/workflows/web.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  shared-cases:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm test -w brain-dump

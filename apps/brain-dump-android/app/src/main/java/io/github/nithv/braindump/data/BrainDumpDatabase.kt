@@ -17,6 +17,8 @@ import androidx.room.RoomDatabase
 abstract class BrainDumpDatabase : RoomDatabase() {
     abstract fun captures(): CaptureDao
 
+    abstract fun items(): ItemDao
+
     companion object {
         const val NAME = "brain-dump.db"
 

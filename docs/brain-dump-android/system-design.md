@@ -207,6 +207,14 @@ Heavy use: 20 dumps a day, 5 of them photos, 3 voice notes.
 **D. Sort**: Inbox → tap a chip → in **one database transaction** the item is created and the dump is marked sorted → **Undo** reverses both.
 
 > **🎓 Design lesson: transactions.** "Create item" and "mark dump sorted" must both happen or neither. Otherwise a crash could leave a dump in the Inbox *and* in a pile. A transaction makes the pair all-or-nothing.
+>
+> *Built in N2 and proven:* a test makes the second write blow up on purpose and checks that the dump is still safely in the Inbox. We then deleted the transaction for a moment, and that test failed, so we know it really guards the rule. (A test you've never seen fail might not be testing anything.)
+
+**D2. Smart guess and the date finder (added in N2)**: the website reads dates with a JavaScript library (chrono-node), which the phone app can't run. So the phone has a smaller hand-written Kotlin finder for the phrases people actually type ("tomorrow 5pm", "on friday", "in 2 hours", "Oct 12"). A date with no time means 9:00 AM.
+
+> **🎓 SRE lesson: one contract, two implementations.** When two programs must behave the same, write the expected behaviour down **once** as data, and make both run it. `shared/smart-guess-cases.json` holds about 90 examples (dates, pile guesses, splits). The website's test and the phone's test both read that file, and GitHub runs both whenever it changes. If either app drifts, a test fails before you ever see the difference. This is **contract testing**, the same idea teams use between a server and its apps.
+>
+> Where the phone deliberately differs, it's written down rather than hidden: it ignores "12/10" (12 October in India, 10 December in the US, and a wrong guess is worse than none), it ignores bare "sat"/"sun"/"wed" unless a time or "on" comes with them ("I sat down" isn't a date), and it ignores a bare month name ("march to the shop").
 
 **E. Share to Brain Dump**: Gallery → Share → Brain Dump → a small "Dumped ✓" sheet → back to where you were. Several photos become one dump each.
 
@@ -345,9 +353,9 @@ Each one ends with a **signed APK on your phone** and a short "what we learned" 
 
 | # | Milestone | You can… | SRE / design focus |
 |---|---|---|---|
-| **N0** | **Walking skeleton**: install Android SDK + emulator, empty app with theme and icon, GitHub Actions CI, signing key, first GitHub Release | Install "Brain Dump" and see the Home screen | Release pipeline, signing, versioning |
-| **N1** | **Text dumps + Inbox**: Room database v1, repository, Dump box, Inbox, clear/undo | Dump text and see it in the Inbox | Data layer, unidirectional flow, first SLO timer |
-| **N2** | **Sorting + piles**: chips, smart guess, date finder, split, piles, done/move/date/archive | Sort into piles | Transactions, shared test cases with the web |
+| **N0** ✅ | **Walking skeleton**: install Android SDK + emulator, empty app with theme and icon, GitHub Actions CI, signing key, first GitHub Release | Install "Brain Dump" and see the Home screen | Release pipeline, signing, versioning |
+| **N1** ✅ | **Text dumps + Inbox**: Room database v1, repository, Dump box, Inbox, clear/undo | Dump text and see it in the Inbox | Data layer, unidirectional flow, first SLO timer |
+| **N2** ✅ | **Sorting + piles**: chips, smart guess, date finder, split, piles, done/move/date/archive | Sort into piles | Transactions, shared test cases with the web |
 | **N3** | **Photo dumps**: camera, picker, shrink, thumbnails, full-screen view | Dump photos | Write order, atomic rename, reconciliation job |
 | **N4** | **Voice dumps**: spike, then recorder + playback + transcription | Dump by voice | Spikes, permissions, graceful degradation |
 | **N5** | **Pause / Resume** | Save and resume your place | First real schema migration (v1→v2) + migration tests |

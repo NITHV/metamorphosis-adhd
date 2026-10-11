@@ -24,9 +24,13 @@ data class BrainDumpColors(
     val brandForeground: Color,
     val brandSoft: Color,
     val blue: Color,
+    val blueSoft: Color,
     val purple: Color,
+    val purpleSoft: Color,
     val red: Color,
+    val redSoft: Color,
     val orange: Color,
+    val orangeSoft: Color,
 )
 
 val LightColors = BrainDumpColors(
@@ -41,9 +45,13 @@ val LightColors = BrainDumpColors(
     brandForeground = Color(0xFF10140F),
     brandSoft = Color(0xFFD9F0E2),
     blue = Color(0xFF3D7FF0),
+    blueSoft = Color(0xFFD6E5FF),
     purple = Color(0xFF7B61E8),
+    purpleSoft = Color(0xFFE5DEFD),
     red = Color(0xFFE0443E),
+    redSoft = Color(0xFFFBDCDA),
     orange = Color(0xFFF29A1F),
+    orangeSoft = Color(0xFFFDE7C6),
 )
 
 val DarkColors = BrainDumpColors(
@@ -58,9 +66,13 @@ val DarkColors = BrainDumpColors(
     brandForeground = Color(0xFF0D120E),
     brandSoft = Color(0xFF1D3326),
     blue = Color(0xFF5D95F5),
+    blueSoft = Color(0xFF1C2B47),
     purple = Color(0xFF9B86F2),
+    purpleSoft = Color(0xFF2A2347),
     red = Color(0xFFEF6560),
+    redSoft = Color(0xFF43201E),
     orange = Color(0xFFF4AB45),
+    orangeSoft = Color(0xFF40301A),
 )
 
 private val LocalColors = staticCompositionLocalOf { LightColors }

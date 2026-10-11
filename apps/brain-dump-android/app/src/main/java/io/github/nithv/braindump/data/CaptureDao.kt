@@ -16,6 +16,9 @@ interface CaptureDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(capture: CaptureEntity)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAll(captures: List<CaptureEntity>)
+
     @Query("UPDATE captures SET status = :status, updated_at = :now WHERE id = :id")
     suspend fun setStatus(id: String, status: CaptureStatus, now: Long): Int
 
